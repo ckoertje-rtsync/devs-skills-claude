@@ -1,5 +1,5 @@
 ---
-name: "PowerDEVS Builder Startup"
+name: "power-devs-builder-startup"
 description: "Create PowerDEVS models (.pdm files) for continuous/hybrid system simulation using QSS methods. Takes a brief description, autonomously infers the complete model structure including integrators, summers, multipliers, and signal routing, then generates a valid .pdm file. Use when modeling differential equations, control systems, population dynamics, or any continuous system with PowerDEVS. General-purpose version: prompts for user-specific directories at runtime."
 ---
 

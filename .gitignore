@@ -3,3 +3,6 @@ test/
 
 # docs for generating skills
 docs/
+
+# claude
+.claude/
