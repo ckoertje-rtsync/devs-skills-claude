@@ -1,11 +1,36 @@
 #!/usr/bin/env bash
-# Install devs-skills-claude skills as symlinks in .claude/skills/ (project-local)
+# Install devs-skills-claude skills as symlinks (project-local or global)
 set -euo pipefail
+
+usage() {
+    echo "Usage: $(basename "$0") [--global|-g]"
+    echo ""
+    echo "  (default)    Install to ./.claude/  (project-local, for testing)"
+    echo "  --global -g  Install to ~/.claude/  (available in all projects)"
+    exit "${1:-0}"
+}
+
+GLOBAL=0
+for arg in "$@"; do
+    case "$arg" in
+        --global|-g) GLOBAL=1 ;;
+        --help|-h)   usage 0 ;;
+        *)           echo "Unknown option: $arg"; usage 1 ;;
+    esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SRC="$SCRIPT_DIR/skills"
-SKILLS_DST="$SCRIPT_DIR/.claude/skills"
-CMDS_DST="$SCRIPT_DIR/.claude/commands"
+
+if [[ "$GLOBAL" == "1" ]]; then
+    SKILLS_DST="$HOME/.claude/skills"
+    CMDS_DST="$HOME/.claude/commands"
+    echo "Installing globally to ~/.claude/"
+else
+    SKILLS_DST="$SCRIPT_DIR/.claude/skills"
+    CMDS_DST="$SCRIPT_DIR/.claude/commands"
+    echo "Installing locally to ./.claude/"
+fi
 
 mkdir -p "$SKILLS_DST" "$CMDS_DST"
 
@@ -65,4 +90,8 @@ EOF
 done
 
 echo ""
-echo "Done: $installed installed, $skipped skipped, $commands commands"
+if [[ "$GLOBAL" == "1" ]]; then
+    echo "Done: $installed installed, $skipped skipped, $commands commands (global: ~/.claude/)"
+else
+    echo "Done: $installed installed, $skipped skipped, $commands commands (local: ./.claude/)"
+fi
