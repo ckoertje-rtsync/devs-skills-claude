@@ -1,0 +1,3 @@
+from the Dialog perspective, HelloWorldSES is made of HelloWorld and BackAtYou!
+from the Dialog perspective, HelloWorld sends Hello to BackAtYou!
+from the Dialog perspective, BackAtYou sends Hi to HelloWorld!

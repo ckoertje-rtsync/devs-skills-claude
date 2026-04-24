@@ -1,0 +1,115 @@
+package {{PACKAGE}};
+
+import java.util.Arrays;
+
+import com.ms4systems.devs.core.model.impl.Coupled;
+import com.ms4systems.devs.paradevs.ParaDevsNode;
+import com.ms4systems.devs.paradevs.quantized.Quantizer;
+import com.ms4systems.devs.paradevs.quantized.QuantizedOperatorTable;
+{{EXTRA_IMPORTS}}
+
+/**
+ * Paratemporal tree node for the {{DOMAIN}} model with quantized-evidence state.
+ *
+ * <p>Evidence is represented as an integer level {@code evidenceLevel ∈ [0, G-1]}
+ * combined across the path via the homomorphic lookup table
+ * {@link QuantizedOperatorTable}. Optional {@code histogram[k]} counts
+ * occurrences of level {@code k} for symmetry-merging equivalence.
+ *
+ * <p>References:
+ *   - resources/patterns/quantized-evidence-integration.md
+ *   - resources/reference/quantized-package-cheatsheet.md
+ *   - docs/paradevs/EvidenceAppendix.pdf §§A, C, E, F
+ */
+public class {{NODE_CLASS}} extends ParaDevsNode {
+
+    // ------------------------------------------------------------------ //
+    //  Quantized-evidence state
+    // ------------------------------------------------------------------ //
+
+    /** Graininess (cached from the driver's compile-time G). */
+    public int G;
+
+    /** Accumulated evidence level in {@code {0,…,G-1}}. */
+    public int evidenceLevel;
+
+    /** Optional histogram of level occurrences along the path. Non-null when
+     *  histogram equivalence is used; null when scalar equivalence is used. */
+    public int[] histogram;
+
+    // ------------------------------------------------------------------ //
+    //  Domain state (non-evidence fields, if any)
+    // ------------------------------------------------------------------ //
+
+{{STATE_FIELDS}}
+
+    // ------------------------------------------------------------------ //
+    //  Construction
+    // ------------------------------------------------------------------ //
+
+    public {{NODE_CLASS}}(String nm, int G) {
+        name = nm;
+        pathProb = 1.0;
+        this.G = G;
+        this.evidenceLevel = 0;
+{{HISTOGRAM_INIT}}
+{{STATE_INIT}}
+    }
+
+    public {{NODE_CLASS}}(String nm, int G, Coupled cm) {
+        this(nm, G);
+        this.cm = cm;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Branching
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Create a child node by applying one new quantized evidence input.
+     *
+     * @param label       branch label
+     * @param evidenceIn  new evidence level in {@code {0,…,G-1}} — caller
+     *                    quantizes raw values with {@link Quantizer#quantize(double, int)}
+     * @param T           the driver's precomputed operator table
+     * @param prob        single-branch probability
+     * @return the new child node
+     */
+    public {{NODE_CLASS}} setBranchEvidence(String label, int evidenceIn,
+                                            QuantizedOperatorTable T, double prob) {
+        {{NODE_CLASS}} n = new {{NODE_CLASS}}(name + ":" + label, this.G);
+        children.put(label, n);
+        n.level = level + 1;
+        n.prob = prob;
+        n.pathProb = pathProb * prob;
+
+        // Combine via the homomorphic lookup (constant-time integer op).
+        n.evidenceLevel = T.lookup(this.evidenceLevel, evidenceIn);
+
+        // Update histogram if enabled.
+        if (this.histogram != null) {
+            n.histogram = this.histogram.clone();
+            n.histogram[evidenceIn] += 1;
+        }
+
+{{STATE_COPY_AND_DELTA}}
+
+        return n;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Object overrides
+    // ------------------------------------------------------------------ //
+
+    @Override
+    public String toString() {
+        return "{{NODE_CLASS}}{"
+                + "name=" + name
+                + ", level=" + level
+                + ", evidenceLevel=" + evidenceLevel
+                + ", pathProb=" + String.format("%.6f", pathProb)
+                + (histogram != null ? ", histogram=" + Arrays.toString(histogram) : "")
+{{TOSTRING_STATE_FIELDS}}
+                + "}";
+    }
+}

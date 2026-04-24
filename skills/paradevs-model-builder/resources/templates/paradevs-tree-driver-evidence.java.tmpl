@@ -1,0 +1,191 @@
+package {{PACKAGE}};
+
+import java.util.HashMap;
+import java.util.HashSet;
+
+import com.ms4systems.devs.paradevs.ParaDevsTree;
+import com.ms4systems.devs.paradevs.quantized.Quantizer;
+import com.ms4systems.devs.paradevs.quantized.QuantizedOperatorTable;
+import com.ms4systems.devs.paradevs.quantized.ThresholdClassifier;
+{{EXTRA_IMPORTS}}
+
+/**
+ * Paratemporal tree driver for the {{DOMAIN}} model with quantized-evidence
+ * accumulation and threshold classification at the terminals.
+ *
+ * <p>Pattern references:
+ *   - resources/patterns/quantized-evidence-integration.md
+ *   - resources/patterns/make-tree-to-depth.md
+ *   - resources/patterns/advance-leaf-front.md
+ *   - resources/patterns/equivalence-merging.md
+ *   - docs/paradevs/EvidenceAppendix.pdf §§A–F
+ */
+public class {{DRIVER_CLASS}} {
+
+    // ------------------------------------------------------------------ //
+    //  Compile-time configuration
+    // ------------------------------------------------------------------ //
+
+    /** Graininess — tune per deployment (embedded: 5-10; simulation: 100+). */
+    public static final int G = {{G_VALUE}};
+
+    /** Precomputed homomorphic operator table. {{OPERATOR_COMMENT}} */
+    public static final QuantizedOperatorTable T = {{OPERATOR_FACTORY}};
+
+    /** Thresholds in the G-domain. Sorted ascending. */
+    public static final int[] THRESHOLDS = {{THRESHOLDS_ARRAY}};
+
+    /** Action labels; length = THRESHOLDS.length + 1; labels[0] is the default. */
+    public static final String[] ACTION_LABELS = {{ACTION_LABELS_ARRAY}};
+
+    /** Highest-exceeded-threshold classifier. */
+    public static final ThresholdClassifier<String> CLASSIFIER =
+            new ThresholdClassifier<>(THRESHOLDS, ACTION_LABELS);
+
+    /** When true, equivalent children are merged into a single node. */
+    public static boolean useEquivalence = true;
+
+    /** When true, nodes maintain a histogram of path-level counts. */
+    public static boolean useHistogram = {{USE_HISTOGRAM}};
+
+    /** Default expansion depth. */
+    public static int defaultDepth = {{DEFAULT_DEPTH}};
+
+    private {{DRIVER_CLASS}}() {
+        // Static utility class
+    }
+
+    // ------------------------------------------------------------------ //
+    //  makeTreeToDepth
+    // ------------------------------------------------------------------ //
+
+    public static ParaDevsTree makeTreeToDepth(int maxDepth) {
+        ParaDevsTree bt = new ParaDevsTree();
+        {{NODE_CLASS}} root = new {{NODE_CLASS}}("root", G);
+        root.level = 0;
+        root.pathProb = 1.0;
+        if (useHistogram) root.histogram = new int[G];
+{{ROOT_INIT}}
+        bt.root = root;
+        bt.leaves = new HashSet();
+        bt.leaves.add(root);
+        bt.interiors = new HashSet();
+        bt.terminals = new HashSet();
+
+        for (int d = 0; d < maxDepth; d++) {
+            advanceLeafFront(bt, d);
+        }
+        return bt;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  advanceLeafFront
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Expand every current leaf on one layer by enumerating all quantized
+     * evidence levels with the per-layer probability distribution.
+     *
+     * <p>The input probability distribution defaults to uniform over all G
+     * levels; replace {@link #evidenceProbs(int)} with domain-specific
+     * distributions when appropriate.
+     */
+    @SuppressWarnings("unchecked")
+    public static void advanceLeafFront(ParaDevsTree bt, int layer) {
+        HashSet<{{NODE_CLASS}}> newLeaves = new HashSet<>();
+        double[] probs = evidenceProbs(layer);
+
+        for (Object o : bt.leaves) {
+            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+            bt.interiors.add(n);
+
+            for (int levelIn = 0; levelIn < G; levelIn++) {
+                double p = probs[levelIn];
+                if (p <= 0.0) continue;
+                {{NODE_CLASS}} child = n.setBranchEvidence(
+                        Integer.toString(levelIn), levelIn, T, p);
+
+                if (useEquivalence) {
+                    {{NODE_CLASS}} equiv = equivalentTo(child, newLeaves);
+                    if (equiv == null) {
+                        newLeaves.add(child);
+                    } else {
+                        equiv.pathProb = equiv.pathProb + child.pathProb;
+                    }
+                } else {
+                    newLeaves.add(child);
+                }
+            }
+        }
+        bt.leaves = newLeaves;
+    }
+
+    /**
+     * Probability distribution over the G quantized levels for a given layer.
+     * Default: uniform. Override per domain.
+     */
+    public static double[] evidenceProbs(int layer) {
+        double[] p = new double[G];
+        double u = 1.0 / G;
+        for (int k = 0; k < G; k++) p[k] = u;
+        return p;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Equivalence
+    // ------------------------------------------------------------------ //
+
+    public static {{NODE_CLASS}} equivalentTo({{NODE_CLASS}} leaf,
+                                              HashSet<{{NODE_CLASS}}> nodes) {
+        for ({{NODE_CLASS}} n : nodes) {
+            if (equivalent(n, leaf)) return n;
+        }
+        return null;
+    }
+
+{{EQUIVALENT_METHOD}}
+
+    // ------------------------------------------------------------------ //
+    //  Aggregation — classify terminals and build a PMF over action labels
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Sum {@code pathProb} across every leaf grouped by the action label
+     * returned by {@link #CLASSIFIER}.
+     */
+    public static HashMap<String, Double> actionPMF(ParaDevsTree bt) {
+        HashMap<String, Double> pmf = new HashMap<>();
+        for (String lbl : ACTION_LABELS) pmf.put(lbl, 0.0);
+        for (Object o : bt.leaves) {
+            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+            String action = CLASSIFIER.labelFor(n.evidenceLevel);
+            pmf.merge(action, n.pathProb, Double::sum);
+        }
+        return pmf;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  main harness
+    // ------------------------------------------------------------------ //
+
+    public static void main(String[] args) {
+        int depth = (args.length > 0) ? Integer.parseInt(args[0]) : defaultDepth;
+
+        // Sanity check: the table is really a homomorphic image of U.
+        assert T.verifyHomomorphism((v1, v2) -> {{OPERATOR_LAMBDA}}, 1)
+                : "QuantizedOperatorTable failed homomorphism check";
+
+        long start = System.currentTimeMillis();
+        ParaDevsTree bt = makeTreeToDepth(depth);
+        long end = System.currentTimeMillis();
+
+        HashMap<String, Double> pmf = actionPMF(bt);
+        System.out.println("{{DRIVER_CLASS}}: depth=" + depth
+                + " G=" + G
+                + " leaves=" + bt.leaves.size()
+                + " elapsedMs=" + (end - start));
+        for (String lbl : ACTION_LABELS) {
+            System.out.printf("  %s = %.6f%n", lbl, pmf.get(lbl));
+        }
+    }
+}

@@ -1,0 +1,58 @@
+# {{DOMAIN}} — Paratemporal tree structure
+
+Visual schematic of the tree-expansion flow for `{{DRIVER_CLASS}}` / `{{NODE_CLASS}}`.
+
+## Branching flow (first two layers)
+
+```mermaid
+flowchart LR
+    ROOT["root<br/>level 0<br/>pathProb 1.0"]
+{{LAYER_1_NODES}}
+{{LAYER_1_EDGES}}
+{{LAYER_2_NODES}}
+{{LAYER_2_EDGES}}
+```
+
+## Driver call graph
+
+```mermaid
+flowchart TD
+    MAIN["main(args)"] --> MTTD["makeTreeToDepth(depth)"]
+    MTTD --> INIT["init root<br/>pathProb 1.0<br/>bt.leaves = {root}"]
+    MTTD --> LOOP["for d in 0..depth-1"]
+    LOOP --> ALF["advanceLeafFront(bt, d)"]
+    ALF --> EXP["for each leaf n<br/>expand children"]
+    EXP --> MERGE["equivalentTo(child, newLeaves)"]
+    MERGE -->|hit| ACC["equiv.pathProb += child.pathProb"]
+    MERGE -->|miss| ADD["newLeaves.add(child)"]
+    ALF --> SWAP["bt.leaves = newLeaves"]
+    MTTD --> AGG["{{AGGREGATION_CALL}}"]
+```
+
+## State-on-node
+
+```mermaid
+classDiagram
+    ParaDevsNode <|-- {{NODE_CLASS}}
+    class ParaDevsNode {
+        +Hashtable children
+        +String name
+        +int level
+        +double prob
+        +double pathProb
+        +boolean terminated
+    }
+    class {{NODE_CLASS}} {
+{{STATE_CLASS_FIELDS}}
+        +{{SETBRANCH_NAME}}(...)
+    }
+```
+
+## Key invariants
+
+- `root.pathProb = 1.0` (override the default `0.0`)
+- `child.pathProb = parent.pathProb * prob`
+- `equivalent(a, b) implies a.level == b.level`
+- At every layer: `sum(leaf.pathProb for leaf in bt.leaves) + sum(term.pathProb for term in bt.terminals) ≈ 1.0`
+
+See `resources/patterns/` for details.

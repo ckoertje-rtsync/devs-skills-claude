@@ -1,5 +1,5 @@
 ---
-name: "DEVS Model Outline"
+name: devs-model-outline
 description: "Create a DEVS model specification from input/documentation or outline an existing DEVS model from project source files. Produces a suite of Markdown files with Mermaid UML diagrams including state diagrams for atomic models, flow and sequence diagrams for coupled models."
 ---
 

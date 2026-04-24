@@ -1,0 +1,56 @@
+{{! State-diagram template. Follows resources/reference/mermaid-label-safety.md:
+    - ASCII tokens only in Mermaid labels (no σ/τ/λ/ΔE glyphs — use sigma/tau/lambda/dE)
+    - no semicolons, no `:=`, avoid nested parens
+    - parameter-update (non-phase-changing) reactions go into a `note` block,
+      NOT as self-loop transitions — prevents edges piling on one state. }}
+# {{class_name}} — State Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> {{initial_phase}} : initialize / holdIn({{initial_phase}}, {{initial_sigma}})
+
+    {{#each phase_changing_internal_transitions}}
+    {{from}} --> {{to_phase}} : tau_int (sigma = {{to_sigma}}){{#if action}} / {{action}}{{/if}}
+    {{/each}}
+    {{#each phase_changing_external_transitions}}
+    {{from_phase}} --> {{to_phase}} : tau_ext {{port}}{{#if action}} / {{action}}{{/if}}
+    {{/each}}
+    {{#if has_nonphase_reactions}}
+
+    note right of {{initial_phase}}
+        In-place updates (no phase change):
+        {{#each nonphase_reactions}}
+        {{port}}  -> {{effect}}
+        {{/each}}
+    end note
+    {{/if}}
+    {{#if is_markov}}
+
+    %% Markov rate transitions:
+    {{#each transitions}}
+    {{#each successors}}
+    {{../from}} --> {{state}} : lambda = {{rate}}
+    {{/each}}
+    {{/each}}
+    {{/if}}
+```
+
+## Phases
+
+| Phase | sigma on entry | Notes |
+|---|---|---|
+{{#each phases}}
+| `{{name}}` | {{sigma_on_entry}} | {{notes}} |
+{{/each}}
+
+## Ports
+
+### Input
+{{#each input_ports}}
+- `{{name}}` : `{{type}}` — {{description}}
+{{/each}}
+
+### Output
+{{#each output_ports}}
+- `{{name}}` : `{{type}}` — {{description}}
+{{/each}}

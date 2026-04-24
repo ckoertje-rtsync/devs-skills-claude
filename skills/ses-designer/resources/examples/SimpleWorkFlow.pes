@@ -1,0 +1,5 @@
+set name of model as SimpleWorkFlow!
+pruned from SimpleWorkFlow.ses!
+restructure multiaspects using index!
+set multiplicity of index as [5] for Processor!
+write class files!

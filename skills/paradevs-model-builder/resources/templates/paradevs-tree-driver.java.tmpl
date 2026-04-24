@@ -1,0 +1,148 @@
+package {{PACKAGE}};
+
+import java.util.HashSet;
+
+import com.ms4systems.devs.paradevs.ParaDevsTree;
+{{EXTRA_IMPORTS}}
+
+/**
+ * Paratemporal tree driver for the {{DOMAIN}} model.
+ *
+ * <p>Replaces Monte Carlo sampling with breadth-first tree expansion. At each
+ * level, every leaf is expanded via {@link #advanceLeafFront(ParaDevsTree, int)};
+ * equivalent children are merged via {@link #equivalent(
+ * {{NODE_CLASS}}, {{NODE_CLASS}})} with cumulative {@code pathProb} accumulation.
+ *
+ * <p>Pattern references:
+ *   - resources/patterns/make-tree-to-depth.md
+ *   - resources/patterns/advance-leaf-front.md
+ *   - resources/patterns/equivalence-merging.md
+ *   - resources/patterns/termination-and-aggregation.md
+ */
+public class {{DRIVER_CLASS}} {
+
+    /** When true, equivalent children are merged into a single node. */
+    public static boolean useEquivalence = {{USE_EQUIVALENCE}};
+
+    /** Default expansion depth if no depth is passed. */
+    public static int defaultDepth = {{DEFAULT_DEPTH}};
+
+    private {{DRIVER_CLASS}}() {
+        // Static utility class
+    }
+
+    // ------------------------------------------------------------------ //
+    //  makeTreeToDepth
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Build a full paratemporal tree to {@code maxDepth} levels.
+     */
+    public static ParaDevsTree makeTreeToDepth(int maxDepth) {
+        ParaDevsTree bt = new ParaDevsTree();
+        {{NODE_CLASS}} root = new {{NODE_CLASS}}("root");
+        root.level = 0;
+        root.pathProb = 1.0;
+{{ROOT_INIT}}
+        bt.root = root;
+        bt.leaves = new HashSet();
+        bt.leaves.add(root);
+        bt.interiors = new HashSet();
+        bt.terminals = new HashSet();
+
+        for (int d = 0; d < maxDepth; d++) {
+            advanceLeafFront(bt, d);
+        }
+        return bt;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  advanceLeafFront
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Expand every current leaf one level forward, merging equivalents.
+     *
+     * @param bt    the tree being expanded
+     * @param layer the layer index (interpretation is domain-specific: dim,
+     *              phase, cue index, etc.)
+     */
+    @SuppressWarnings("unchecked")
+    public static void advanceLeafFront(ParaDevsTree bt, int layer) {
+        HashSet<{{NODE_CLASS}}> newLeaves = new HashSet<>();
+
+{{LAYER_SETUP}}
+
+        for (Object o : bt.leaves) {
+            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+            bt.interiors.add(n);
+
+{{EXPAND_PARENT}}
+
+            for (Object c : n.children.values()) {
+                {{NODE_CLASS}} child = ({{NODE_CLASS}}) c;
+
+{{TERMINAL_CHECK}}
+
+                if (useEquivalence) {
+                    {{NODE_CLASS}} equiv = equivalentTo(child, newLeaves);
+                    if (equiv == null) {
+                        newLeaves.add(child);
+                    } else {
+                        equiv.pathProb = equiv.pathProb + child.pathProb;
+                    }
+                } else {
+                    newLeaves.add(child);
+                }
+            }
+        }
+        bt.leaves = newLeaves;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Equivalence
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Find a node in {@code nodes} that is equivalent to {@code leaf}, or
+     * return {@code null}.
+     */
+    public static {{NODE_CLASS}} equivalentTo({{NODE_CLASS}} leaf,
+                                              HashSet<{{NODE_CLASS}}> nodes) {
+        for ({{NODE_CLASS}} n : nodes) {
+            if (equivalent(n, leaf)) return n;
+        }
+        return null;
+    }
+
+{{EQUIVALENT_METHOD}}
+
+    // ------------------------------------------------------------------ //
+    //  Aggregation
+    // ------------------------------------------------------------------ //
+
+{{AGGREGATION_METHODS}}
+
+    // ------------------------------------------------------------------ //
+    //  main harness
+    // ------------------------------------------------------------------ //
+
+    public static void main(String[] args) {
+        int depth = (args.length > 0) ? Integer.parseInt(args[0]) : defaultDepth;
+        long start = System.currentTimeMillis();
+        ParaDevsTree bt = makeTreeToDepth(depth);
+        long end = System.currentTimeMillis();
+
+        double totalProb = 0.0;
+        for (Object o : bt.leaves) {
+            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+            totalProb += n.pathProb;
+        }
+
+        System.out.println("{{DRIVER_CLASS}}: depth=" + depth
+                + " leaves=" + bt.leaves.size()
+                + " terminals=" + bt.terminals.size()
+                + " sum(pathProb)=" + String.format("%.6f", totalProb)
+                + " elapsedMs=" + (end - start));
+    }
+}

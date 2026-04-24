@@ -1,5 +1,5 @@
 ---
-name: "DEVS Builder"
+name: devs-builder
 description: "Create Discrete Event System Specification (DEVS) models for any given system. Takes a brief description, autonomously infers the complete DEVS structure, generates an outline template, produces a runnable .java DEVS model, then validates and tests the model in the console. Use when modeling, simulating, or analyzing discrete event systems."
 ---
 

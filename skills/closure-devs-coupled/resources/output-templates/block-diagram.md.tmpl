@@ -1,0 +1,78 @@
+{{! Block-diagram template for Closure-DEVS coupled models.
+    Uses Mermaid `flowchart LR` (not stateDiagram-v2 — coupleds don't have phases).
+
+    Follows resources/reference/mermaid-label-safety-flowchart.md:
+    - ASCII tokens only in edge labels (no Greek glyphs)
+    - no semicolons, no `:=`
+    - keep edge labels short: "outPort -> inPort" reads cleanly
+    - wrap the coupled boundary in a `subgraph`; external ports live inside
+      the subgraph as `((port))` round nodes so EIC / EOC read naturally. }}
+# {{class_name}} — Block Diagram
+
+```mermaid
+flowchart LR
+    subgraph {{class_name}}[" {{class_name}} : Coupled "]
+        direction LR
+        {{#each external_input_ports}}
+        {{this.name}}_in(({{this.name}}))
+        {{/each}}
+        {{#each external_output_ports}}
+        {{this.name}}_out(({{this.name}}))
+        {{/each}}
+        {{#each children}}
+        {{var_name}}["{{var_name}} : {{class_name}}"]
+        {{/each}}
+
+        %% EIC (external input -> child input)
+        {{#each eic_couplings}}
+        {{from_port}}_in --> |{{to_port}}| {{to_child}}
+        {{/each}}
+
+        %% IC (child output -> child input)
+        {{#each ic_couplings}}
+        {{from_child}} --> |{{from_port}} -> {{to_port}}| {{to_child}}
+        {{/each}}
+
+        %% EOC (child output -> external output)
+        {{#each eoc_couplings}}
+        {{from_child}} --> |{{from_port}}| {{to_port}}_out
+        {{/each}}
+    end
+```
+
+## Children
+
+| Variable | Class | Kind | Notes |
+|---|---|---|---|
+{{#each children}}
+| `{{var_name}}` | `{{class_name}}` | {{kind}} | {{notes}} |
+{{/each}}
+
+## External Ports
+
+### Input
+{{#each external_input_ports}}
+- `{{name}}` : `{{type}}` — {{description}}
+{{/each}}
+
+### Output
+{{#each external_output_ports}}
+- `{{name}}` : `{{type}}` — {{description}}
+{{/each}}
+
+## Couplings
+
+### External Input Couplings (EIC)
+{{#each eic_couplings}}
+- `this.{{from_port}}` -> `{{to_child}}.{{to_port}}`
+{{/each}}
+
+### Internal Couplings (IC)
+{{#each ic_couplings}}
+- `{{from_child}}.{{from_port}}` -> `{{to_child}}.{{to_port}}`
+{{/each}}
+
+### External Output Couplings (EOC)
+{{#each eoc_couplings}}
+- `{{from_child}}.{{from_port}}` -> `this.{{to_port}}`
+{{/each}}

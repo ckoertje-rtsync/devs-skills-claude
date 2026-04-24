@@ -24,24 +24,20 @@ SKILLS_SRC="$SCRIPT_DIR/skills"
 
 if [[ "$GLOBAL" == "1" ]]; then
     SKILLS_DST="$HOME/.claude/skills"
-    CMDS_DST="$HOME/.claude/commands"
     echo "Installing globally to ~/.claude/"
 else
     SKILLS_DST="$SCRIPT_DIR/.claude/skills"
-    CMDS_DST="$SCRIPT_DIR/.claude/commands"
     echo "Installing locally to ./.claude/"
 fi
 
-mkdir -p "$SKILLS_DST" "$CMDS_DST"
+mkdir -p "$SKILLS_DST"
 
 installed=0
 skipped=0
-commands=0
 
 for skill_dir in "$SKILLS_SRC"/*/; do
     [ -d "$skill_dir" ] || continue
     skill_name="$(basename "$skill_dir")"
-    skill_md="$skill_dir/SKILL.md"
     target="$SKILLS_DST/$skill_name"
 
     # --- symlink skill ---
@@ -64,34 +60,11 @@ for skill_dir in "$SKILLS_SRC"/*/; do
         echo "  link  $skill_name -> $skill_dir"
         installed=$((installed + 1))
     fi
-
-    # --- generate slash command ---
-    if [ -f "$skill_md" ]; then
-        # extract name and description from YAML frontmatter
-        cmd_name=$(sed -n 's/^name: *"\(.*\)"/\1/p' "$skill_md" | head -1)
-        cmd_desc=$(sed -n 's/^description: *"\(.*\)"/\1/p' "$skill_md" | head -1)
-        cmd_file="$CMDS_DST/$skill_name.md"
-
-        cat > "$cmd_file" <<EOF
----
-name: $skill_name
-description: $cmd_desc
----
-
-Run the **$cmd_name** skill.
-
-Load and execute the skill defined in \`skills/$skill_name/SKILL.md\`.
-
-\$ARGUMENTS
-EOF
-        echo "  cmd   /$skill_name"
-        commands=$((commands + 1))
-    fi
 done
 
 echo ""
 if [[ "$GLOBAL" == "1" ]]; then
-    echo "Done: $installed installed, $skipped skipped, $commands commands (global: ~/.claude/)"
+    echo "Done: $installed installed, $skipped skipped (global: ~/.claude/)"
 else
-    echo "Done: $installed installed, $skipped skipped, $commands commands (local: ./.claude/)"
+    echo "Done: $installed installed, $skipped skipped (local: ./.claude/)"
 fi

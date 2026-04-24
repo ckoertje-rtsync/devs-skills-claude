@@ -1,0 +1,40 @@
+# {{system_name}} — SES Hierarchy
+
+```mermaid
+graph TD
+{{#each mermaid_nodes}}
+    {{id}}{{shape_open}}{{label}}{{shape_close}}
+{{/each}}
+{{#each mermaid_edges}}
+    {{from}} -->{{#if edge_label}}|{{edge_label}}|{{/if}} {{to}}
+{{/each}}
+```
+
+## Couplings
+
+```mermaid
+graph LR
+{{#each coupling_nodes}}
+    {{id}}[{{label}}]
+{{/each}}
+{{#each coupling_edges}}
+    {{from}} -->|{{label}}| {{to}}
+{{/each}}
+```
+
+## Legend
+
+| Shape | SES construct |
+|---|---|
+| `[Name]` rectangle | Root, coupled entity, atomic leaf, or specialization option |
+| `(name)` rounded rectangle | Aspect (decomposition hub) |
+| `([name])` stadium | Multi-aspect (replicated group) |
+| `{name}` diamond | Specialization choice-point |
+
+Edge labels carry:
+
+- `more than one` — from a multi-aspect to its unit entity.
+- specialization option name — from a specialization diamond to each option.
+- message name (`Msg` or `Msg as RecvMsg`) — in the couplings graph.
+
+Unlabeled edges are structural (parent → aspect, aspect → child entity).

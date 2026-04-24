@@ -1,0 +1,6 @@
+from the top perspective, SimpleWorkFlow is made of GeneratorOfJobs, Processors and Transducer!
+from the multiProcessor perspective, Processors are made of more than one Processor!
+Processor can be id in index!
+from the top perspective, GeneratorOfJobs sends Job to all Processor!
+from the top perspective, all Processor sends outJob to Transducer as inSolved!
+from the top perspective, Transducer sends Stop to GeneratorOfJobs!

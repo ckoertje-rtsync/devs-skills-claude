@@ -1,0 +1,79 @@
+package {{PACKAGE}};
+
+import com.ms4systems.devs.core.model.impl.Coupled;
+import com.ms4systems.devs.paradevs.ParaDevsNode;
+{{EXTRA_IMPORTS}}
+
+/**
+ * Paratemporal tree node for the {{DOMAIN}} model.
+ *
+ * <p>Each node carries the domain-specific state that persists along a branch
+ * from root to this node. setBranch*() methods snapshot parent state and
+ * mutate the field(s) that change on this branch.
+ *
+ * <p>Pattern references:
+ *   - resources/patterns/set-branch-state-snapshot.md
+ *   - resources/reference/paradevs-api-cheatsheet.md (ParaDevsNode fields)
+ */
+public class {{NODE_CLASS}} extends ParaDevsNode {
+
+    // ------------------------------------------------------------------ //
+    //  Domain state
+    // ------------------------------------------------------------------ //
+
+{{STATE_FIELDS}}
+
+    // ------------------------------------------------------------------ //
+    //  Construction
+    // ------------------------------------------------------------------ //
+
+    public {{NODE_CLASS}}(String nm) {
+        name = nm;
+        pathProb = 1.0;
+{{STATE_INIT}}
+    }
+
+    public {{NODE_CLASS}}(String nm, Coupled cm) {
+        this(nm);
+        this.cm = cm;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Branching
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Creates a child node for branch {{BRANCH_DESCRIPTION}}.
+     *
+     * <p>Snapshots parent state, applies the branch delta, and installs the
+     * child in the {@code children} Hashtable.
+     *
+     * @param label branch label (becomes suffix on the child's name and key in {@code children})
+{{SETBRANCH_PARAM_DOCS}}
+     * @param prob  single-branch probability; {@code pathProb = parent.pathProb * prob}
+     * @return the newly created child node
+     */
+    public {{NODE_CLASS}} {{SETBRANCH_NAME}}(String label{{SETBRANCH_PARAMS}}, double prob) {
+        {{NODE_CLASS}} n = new {{NODE_CLASS}}(name + label);
+        children.put(label, n);
+        n.level = level + 1;
+        n.prob = prob;
+        n.pathProb = pathProb * prob;
+{{STATE_COPY_AND_DELTA}}
+        return n;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Object overrides
+    // ------------------------------------------------------------------ //
+
+    @Override
+    public String toString() {
+        return "{{NODE_CLASS}}{"
+                + "name=" + name
+                + ", level=" + level
+                + ", pathProb=" + String.format("%.6f", pathProb)
+{{TOSTRING_STATE_FIELDS}}
+                + "}";
+    }
+}
