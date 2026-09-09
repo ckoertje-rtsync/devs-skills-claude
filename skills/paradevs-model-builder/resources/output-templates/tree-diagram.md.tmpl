@@ -55,4 +55,6 @@ classDiagram
 - `equivalent(a, b) implies a.level == b.level`
 - At every layer: `sum(leaf.pathProb for leaf in bt.leaves) + sum(term.pathProb for term in bt.terminals) ≈ 1.0`
 
+(In log-space mode, replace the second and fourth lines with `child.logPathProb = parent.logPathProb + log(prob)` and `logAdd(logSumPathProb(bt.leaves), logSumPathProb(bt.terminals)) ≈ 0.0`.)
+
 See `resources/patterns/` for details.

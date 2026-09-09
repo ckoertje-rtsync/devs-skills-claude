@@ -71,6 +71,8 @@ If `n` has no surviving children (e.g., Volume's `earlyElimination` killed them 
 
 When merging, `equiv.pathProb` grows by `child.pathProb`. The discarded child's `prob` (single-branch probability) is lost — only the cumulative `pathProb` matters for downstream aggregation. This is intentional because the merged node represents the union of paths leading to equivalent states.
 
+In `prob_accumulation = log` mode the merge is `equiv.logPathProb = logAdd(equiv.logPathProb, child.logPathProb);` (see `log-space-accumulation.md`).
+
 ## Gotchas
 
 - **Do not** mutate `bt.leaves` in place while iterating. The skeleton deliberately accumulates into a separate `newLeaves` set.

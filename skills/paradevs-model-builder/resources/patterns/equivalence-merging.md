@@ -15,7 +15,7 @@ if (equiv == null) {
 }
 ```
 
-The merged node accumulates `pathProb`; the discarded child is dropped on the floor. Over many layers this turns `G^n` enumerations into `C(n+G-1, G-1)` histogram classes — the symmetry-merging effect documented in `EvidenceAppendix.pdf` §C.2 and `F.3`.
+The merged node accumulates `pathProb` (or, in `prob_accumulation = log` mode, `logPathProb` via `logAdd` — see `log-space-accumulation.md`); the discarded child is dropped on the floor. Over many layers this turns `G^n` enumerations into `C(n+G-1, G-1)` histogram classes — the symmetry-merging effect documented in `EvidenceAppendix.pdf` §C.2 and `F.3`.
 
 ## `equivalentTo` — the lookup wrapper
 

@@ -56,6 +56,8 @@ Keep labels ASCII-safe — they flow into Mermaid diagrams and file names via `n
 - Forgetting to multiply (`n.pathProb = prob` instead of `pathProb * prob`). The tree root must then be initialized with `pathProb = 1.0`, not `0.0` (the `ParaDevsNode` default).
 - Using cumulative `prob` on both sides (`n.pathProb = pathProb + prob`). Additive accumulation is wrong for statistically independent branches.
 
+When the model was approved with `prob_accumulation = log`, step 5 becomes `n.logPathProb = logPathProb + Math.log(prob);` followed by `n.pathProb = Math.exp(n.logPathProb);`. See `log-space-accumulation.md` for the full substitution table.
+
 ## Multiple overloads vs. a single setBranch
 
 When the domain branches on different state dimensions at different layers (RPO, Engagement), giving each layer its own `setBranchXxx()` method is cleaner than one mega-signature. Callers dispatch by method name in their layer expanders (e.g., `expandDetectionPhase` calls `setBranchDetection`). See `advance-leaf-front.md` for how layer dispatch lines up.

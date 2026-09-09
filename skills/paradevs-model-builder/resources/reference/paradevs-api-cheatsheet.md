@@ -15,7 +15,7 @@ Base class for every paratemporal tree node. Domain-specific nodes extend this.
 | `name` | `String` | `null` | Human-readable node name; set in constructor. Children's names are `parent.name + label`. |
 | `level` | `int` | `0` | Depth from root. Set in `setBranch` as `level = parent.level + 1`. |
 | `prob` | `double` | `1.0` | Single-branch probability `Pr(branch \| parent)`. |
-| `pathProb` | `double` | `0.0` | Cumulative probability from root, `parent.pathProb × prob`. **Must** be explicitly set to `1.0` on the root. |
+| `pathProb` | `double` | `0.0` | Cumulative probability from root, `parent.pathProb × prob`. **Must** be explicitly set to `1.0` on the root. The base class has no log-space field; skill-generated nodes add `logPathProb` themselves when `prob_accumulation = log` (see `patterns/log-space-accumulation.md`). |
 | `terminated` | `boolean` | `false` | Marks the node as a terminal outcome (do not expand further). |
 | `path` | `String` | `""` | Optional concatenated branch label trace. |
 | `cm` | `Coupled` | `null` | Optional reference to a Closure-DEVS Coupled model — used when later wiring the tree into a DEVS simulator. Leave `null` for offline tree construction. |

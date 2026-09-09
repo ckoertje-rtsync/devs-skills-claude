@@ -1,6 +1,6 @@
 ---
 name: paradevs-model-builder
-description: "Generate a compilable Paratemporal DEVS (pDEVS) Java model from a description, background document, or existing source. Produces a domain-specific ParaDevsNode subclass plus a TreeFor{Domain} driver class holding makeTreeToDepth / advanceLeafFront / equivalent / equivalentTo and an optional main() harness — the breadth-first tree-expansion replacement for Monte Carlo sampling. Detects evidence-scored domains and offers to wire in the generic com.ms4systems.devs.paradevs.quantized package (Quantizer, QuantizedOperatorTable, GDomainConverter, ThresholdClassifier). Surfaces a design summary and an equivalence-predicate menu for explicit user approval, then drafts and javac-validates the model. Use when you need a paratemporal tree builder in the style of the Volume / AirBattle / RPO / Safety references — not a full DEVS simulator."
+description: "Generate a compilable Paratemporal DEVS (ParaDEVS) Java model from a description, background document, or existing source. Produces a domain-specific ParaDevsNode subclass plus a TreeFor{Domain} driver class holding makeTreeToDepth / advanceLeafFront / equivalent / equivalentTo and an optional main() harness — the breadth-first tree-expansion replacement for Monte Carlo sampling. Detects evidence-scored domains and offers to wire in the generic com.ms4systems.devs.paradevs.quantized package (Quantizer, QuantizedOperatorTable, GDomainConverter, ThresholdClassifier). Surfaces a design summary, an equivalence-predicate menu, and a probability-accumulation choice (product or log-space for deep / rare-event trees) for explicit user approval, then drafts and javac-validates the model. Use when you need a paratemporal tree builder in the style of the Volume / AirBattle / RPO / Safety references — not a full DEVS simulator."
 ---
 
 # paradevs-model-builder
@@ -59,6 +59,7 @@ stateDiagram-v2
 - `termination_predicate` — when a node becomes terminal (e.g., `partialSumSq > 1`, `phase == RESPONSE`, all cues observed)
 - `max_depth_semantics` — fixed int, per-phase count, episode-indexed, or a predicate
 - `main_harness` — whether to emit a runnable `main()` for standalone execution
+- `prob_accumulation` — `product` (default; `pathProb = parent.pathProb * prob`, as in every reference model) or `log` (`logPathProb = parent.logPathProb + log(prob)`, merged with log-sum-exp). Flag an **underflow signal** when the expected depth times `-log(min branch prob)` approaches 700, when branch probabilities are rare-event scale (`<= 1e-6`) over many layers, or when legacy source already carries log-likelihoods. Surface the signal; the user chooses in Stage 2. See `resources/patterns/log-space-accumulation.md`.
 - `evidence_signal` — whether the description mentions:
   - accumulating continuous `[0,1]` evidence via a binary operator (probabilistic sum, MAX, …);
   - threshold-based action labels (normal / caution / warning / critical);
@@ -97,6 +98,7 @@ setBranch     : {signature(s)}
 Terminate     : {predicate}
 Max depth     : {fixed int | phased | predicate | episode-indexed}
 Main harness  : {yes | no}
+Prob accum    : {product | log}   (underflow signal: {none | reason})
 ```
 
 Then ask (using `AskUserQuestion`, single turn):
@@ -108,7 +110,9 @@ Then ask (using `AskUserQuestion`, single turn):
 
 2. **Quantized-evidence integration** (only when Stage 1 flagged the signal): *"This looks like a candidate for `com.ms4systems.devs.paradevs.quantized`. Wire it in (imports + `QuantizedOperatorTable.forProbabilisticSum(G)` + `ThresholdClassifier<String>` + histogram equivalence)?"* — **yes / no / no-but-cite-in-README**. When answered **yes**, also confirm `G`, the binary operator `U`, the threshold vector, and the action-label vector.
 
-3. **Unresolved items** — surface any inferred values the user should confirm (e.g., guessed `EPS`, guessed max depth, inferred class names).
+3. **Probability accumulation** — **product** (default) or **log-space**. Recommend `log` only when Stage 1 raised the underflow signal; otherwise recommend `product` and state why (shallow tree, moderate branch probabilities, line-for-line match with the references).
+
+4. **Unresolved items** — surface any inferred values the user should confirm (e.g., guessed `EPS`, guessed max depth, inferred class names).
 
 Wait for explicit approval (`yes` / `edit` / `cancel`). Only proceed to DRAFT after **explicit** approval.
 
@@ -125,6 +129,8 @@ Wait for explicit approval (`yes` / `edit` / `cancel`). Only proceed to DRAFT af
 - `resources/templates/equivalent-tolerance.java.frag`
 - `resources/templates/equivalent-histogram.java.frag`
 
+**Apply the probability-accumulation mode.** The templates are written in `product` mode. When the approved context says `log`, apply every substitution in `resources/patterns/log-space-accumulation.md` (node field `logPathProb`, root init, `setBranch*` line, merge line, aggregation, `main` total) and splice `resources/templates/accumulate-log.java.frag` into the driver.
+
 Fill all `{{PLACEHOLDER}}` tokens from the approved Model Context. Consult the pattern docs for idiom compliance:
 
 - `resources/patterns/make-tree-to-depth.md`
@@ -132,6 +138,7 @@ Fill all `{{PLACEHOLDER}}` tokens from the approved Model Context. Consult the p
 - `resources/patterns/set-branch-state-snapshot.md`
 - `resources/patterns/equivalence-merging.md`
 - `resources/patterns/termination-and-aggregation.md`
+- `resources/patterns/log-space-accumulation.md` *(`prob_accumulation = log` only)*
 - `resources/patterns/quantized-evidence-integration.md` *(evidence variant only)*
 - `resources/patterns/episode-aware-expansion.md` *(if Stage 1 flagged episodes)*
 
@@ -185,6 +192,7 @@ Show the resolved path to the user *before* writing. Move the four files from th
 - Absolute paths of `{NodeClass}.java`, `{DriverClass}.java`, `tree-diagram.md`, `README.md`
 - Compile status (`javac` exit code and any remaining diagnostics)
 - Equivalence predicate chosen (exact / tolerance / histogram)
+- Probability accumulation mode (product / log)
 - Whether quantized-evidence integration was wired in
 - One-line suggestion for next steps (e.g., "to wrap this expander in a Closure-DEVS Atomic, run `closure-devs-atomic`").
 
@@ -206,11 +214,13 @@ Show the resolved path to the user *before* writing. Move the four files from th
 | `templates/equivalent-exact.java.frag` | Equivalence predicate: exact state match |
 | `templates/equivalent-tolerance.java.frag` | Equivalence predicate: tolerance on continuous field(s) |
 | `templates/equivalent-histogram.java.frag` | Equivalence predicate: multiset (symmetry-merging) |
+| `templates/accumulate-log.java.frag` | Driver helpers for log-space accumulation: `LOG_ZERO`, `logAdd`, `logSumPathProb` |
 | `patterns/make-tree-to-depth.md` | Outer BFS loop idiom with reference citations |
 | `patterns/advance-leaf-front.md` | Inner frontier-replacement idiom, merge-vs-admit rules |
 | `patterns/set-branch-state-snapshot.md` | Copy-and-delta state snapshot, `pathProb` accumulation |
 | `patterns/equivalence-merging.md` | Three predicate flavors + `equivalentTo` scan helper |
 | `patterns/termination-and-aggregation.md` | Terminal moves, scalar aggregates, grouping helpers |
+| `patterns/log-space-accumulation.md` | Opt-in `logPathProb` / log-sum-exp substitutions for deep or rare-event trees |
 | `patterns/quantized-evidence-integration.md` | Wiring `Quantizer` / `QuantizedOperatorTable` / `GDomainConverter` / `ThresholdClassifier` into node+driver |
 | `patterns/episode-aware-expansion.md` | Full-BFS vs single-layer expansion for adaptive / replanning models |
 | `reference/paradevs-api-cheatsheet.md` | `ParaDevsNode` + `ParaDevsTree` public fields and methods |

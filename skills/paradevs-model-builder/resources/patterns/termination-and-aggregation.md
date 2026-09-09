@@ -104,6 +104,8 @@ sum(leaf.pathProb for leaf in bt.leaves) + sum(term.pathProb for term in bt.term
 
 …modulo floating-point drift and (for Volume) intentional early-elimination that drops non-contributing branches. Asserting this in tests is a cheap sanity check — any drift means a `setBranch` forgot the `pathProb * prob` multiplication or an equivalence merge double-counted.
 
+In `prob_accumulation = log` mode assert on `logAdd(logSumPathProb(leaves), logSumPathProb(terminals)) ≈ 0.0` instead; the mirrored `pathProb` field may read `0.0` for leaves that still carry mass. See `log-space-accumulation.md`.
+
 ## When to skip `gt.terminals` entirely
 
 If your only output is an aggregate over surviving leaves at the final depth (Volume's case), you do not need `gt.terminals`. `bt.leaves` at loop exit *is* the terminal set, and `computeVolume` reads directly from it. Don't add `gt.terminals` just because it's available.
