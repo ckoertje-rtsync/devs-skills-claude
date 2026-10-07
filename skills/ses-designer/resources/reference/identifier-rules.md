@@ -57,6 +57,10 @@ Comparison tokens (used in future ranges): `and` is both a grammar connector and
 
 MS4 Me is case-sensitive for identifiers but flexible for some grammar particles (e.g. `from` and `From` are both accepted at line starts). Keep identifiers in a consistent case (CamelCase or snake_case) within a single project to avoid accidental collisions.
 
+## Collective (multi-aspect parent) names
+
+Prefer an explicit collective suffix — `UAVGroup`, `ProcessorPool`, `TargetSet` — over a trailing-`s` plural of the unit name (`UAVs`, `Processors`). MS4 Me's natural-language parser intermittently singularizes a trailing `s` and can reject or collide the declaration. See `patterns/multi-aspect-idioms.md` → "Naming the collective parent".
+
 ## File names
 
 `.ses` and `.pes` file base names must themselves be valid identifiers (Java-identifier rules apply to file names per MS4 Me User's Guide p. 165), even though the content inside may use dashes. The skill maps any dashes in `system_name` to underscores for the file name.

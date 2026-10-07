@@ -1,6 +1,6 @@
 # Pattern — Hierarchical SES Construction (Root-First)
 
-Building an SES bottom-up (enumerating atomics first) almost always produces a flat structure where a single aspect lists dozens of children. Building top-down produces a strict tree that respects the alternating-mode axiom and surfaces natural decomposition seams.
+Building an SES bottom-up (enumerating atomics first) almost always produces a flat structure where a single aspect lists dozens of children. Building top-down produces a strict tree that respects the strict-hierarchy axiom and surfaces natural decomposition seams.
 
 ## The recipe
 
@@ -17,7 +17,7 @@ Building an SES bottom-up (enumerating atomics first) almost always produces a f
 
 ## Why root-first
 
-- The alternating-mode axiom requires aspects and specializations to alternate. Asking *"decompose or specialize?"* at each entity forces a legal alternation; asking *"list all your atomics"* at the top sets you up for axiom violations later.
+- Top-down prompting keeps the tree a strict hierarchy: each entity is introduced once, under the entity that contains it, so no entity label reappears below itself. Asking *"list all your atomics"* at the top tends to produce flat structures and duplicated names instead (see `../reference/ses-axioms.md`).
 - A strict tree makes `.pes` pruning tractable: every multi-aspect and every specialization becomes an explicit choice point, and the user knows how many choices they need to make before running `write class files!`.
 - Aspects are the durable hierarchical seams. Changing the number of `Processor` replicas in a `.pes` should not require rewriting the `.ses`; the skill's prompting order makes this split obvious.
 

@@ -1,6 +1,6 @@
 ---
 name: ses-designer
-description: "Design a System Entity Structure (SES) in MS4 Me's natural language from a description or existing artifacts. Drives construction top-down through a root system, perspectives (aspects), replicated units (multi-aspects), and mutually exclusive variants (specializations); elicits couplings and variables; then emits one or more .ses and .pes files plus a Mermaid hierarchy diagram. Surfaces a compact design summary for explicit user approval, validates the generated files against the six SES constructs, and performs one self-repair pass on validator errors before writing. Use when you need MS4 Me-ready SES/PES artifacts — not runnable DEVS code; pair with devs-builder for that next step."
+description: "Design a System Entity Structure (SES) in MS4 Me's natural language from a description or existing artifacts. Drives construction top-down through a root system, perspectives (aspects), replicated units (multi-aspects), and mutually exclusive variants (specializations); elicits couplings and variables; then emits one or more .ses and .pes files plus a Mermaid hierarchy diagram. Surfaces a compact design summary for explicit user approval, validates the generated files against the SES grammar, the SES axioms, and MS4 Me's coupling-scope rule, and performs one self-repair pass on validator errors before writing. Use when you need MS4 Me-ready SES/PES artifacts — not runnable DEVS code; pair with devs-builder for that next step."
 ---
 
 # ses-designer
@@ -79,7 +79,7 @@ MODEL_CONTEXT = {
 
   pes_choices: {
     multiplicities:        [ { label: "", entity: "", N: 0 } ],
-    specialization_picks:  [ { entity: "", option: "" } ],
+    specialization_picks:  [ { entity: "", label: "", option: "" } ],   // entity is a copy name (id1_Vehicle) when the specialized entity is a multi-aspect unit
     variants:              [ { variant_name: "", multiplicities: [], picks: [] } ]
   },
 
@@ -104,21 +104,21 @@ MODEL_CONTEXT = {
 | Path under `resources/` | Purpose |
 |---|---|
 | `reference/ses-grammar.md` | The six SES constructs — natural-language shape, regex, examples, page cites |
-| `reference/pes-grammar.md` | PES directives — `set name`, `pruned from`, `restructure`, `set multiplicity`, `select`, `write class files` |
-| `reference/ses-axioms.md` | Uniformity, strict hierarchy, alternating mode, valid brothers, attached variables |
+| `reference/pes-grammar.md` | PES directives — `set name`, `pruned from`, `restructure`, `set multiplicity`, `select ... from ... for`, `inherit from`, `write class files` (plus `mergeAll from` and `don't select`, which the validator accepts) |
+| `reference/ses-axioms.md` | The six SES axioms (uniformity, strict hierarchy, alternating mode, valid brothers, attached variables, inheritance) and MS4 Me's coupling-scope rule |
 | `reference/identifier-rules.md` | Valid-identifier regex, reserved keyword list, file-naming constraints |
 | `reference/mermaid-label-safety.md` | ASCII-only, no `;`, no `:=`, shape encoding for the hierarchy diagram |
 | `patterns/hierarchical-construction.md` | Root-first recursion heuristic — the DISCOVER playbook |
 | `patterns/aspect-vs-specialization.md` | Decision rules for decomposition vs. variants vs. parameters |
 | `patterns/multi-aspect-idioms.md` | Plain / tagged / labeled replication; `all` vs. `each` |
-| `patterns/coupling-scope.md` | Parent/child + sibling scope; LCA-aspect requirement |
-| `patterns/variables-and-ranges.md` | Variable inheritance; inclusive/exclusive ranges |
+| `patterns/coupling-scope.md` | Parent/child + sibling scope; the multi-aspect exception |
+| `patterns/variables-and-ranges.md` | Variables, inheritance through specializations, inclusive/exclusive ranges |
 | `templates/ses-skeleton.ses.tmpl` | Handlebars SES body — aspects, multi-aspects, specs, couplings, variables |
 | `templates/pes-skeleton.pes.tmpl` | Handlebars PES body — directive sequence |
 | `templates/hierarchy.md.tmpl` | Mermaid `graph TD` + `graph LR` with shape encoding |
 | `templates/README.md.tmpl` | One-page output README |
-| `scripts/validate-ses.sh` | Per-line regex + reserved-keyword lint + cross-reference check |
-| `scripts/validate-pes.sh` | PES directive regex + ordering check |
+| `scripts/validate-ses.sh` | Per-line regex + reserved-keyword lint + cross-reference check + structural check (axioms, coupling scope) |
+| `scripts/validate-pes.sh` | PES directive regex + ordering check + `inherit from` after its `select` |
 | `scripts/validate-mermaid.sh` | Extract ` ```mermaid ``` ` blocks, render through `mmdc` |
 | `examples/HelloWorld.{ses,pes}` | Worked example from MS4 Me User's Guide pp. 16–17 |
 | `examples/SimpleWorkFlow.{ses,pes}` | Multi-aspect + specialization + coupling rename example, pp. 127–128 |
@@ -140,12 +140,14 @@ MODEL_CONTEXT = {
 2. What are the 1–3 perspectives (aspects) that decompose the root?
 3. Per aspect: what are the direct child entities?
 4. Per child: decompose (another aspect), replicate (multi-aspect), specialize, or leaf atomic? — and recurse into the child if it decomposes.
-5. Per multi-aspect unit: add a tagging specialization (`{UNIT} can be id in index!`) unless the user explicitly opts out.
+5. Per multi-aspect unit: add a tagging specialization (`{UNIT} can be id in index!`). The guide makes copies only through a specialization on the unit (User's Guide p. 121), so warn the user before dropping it. Reuse the label `index` across multi-aspects (p. 126).
 6. Per specialization target: what are the mutually exclusive options and the label?
 7. Per entity pair under a shared aspect: what messages flow between them? Rename on receive?
 8. Per entity: what variables does it carry? Ranges (numeric interval or enumeration)?
 
-**Enforce the alternating-mode axiom at prompt time.** When the user tries to put aspects and specializations on the same entity at the same level, surface the rule from `resources/reference/ses-axioms.md` and ask them to rephrase.
+**Apply the SES axioms at prompt time** (`resources/reference/ses-axioms.md`). An entity may carry aspects *and* specializations, and several of each, so do not ask the user to choose one mode. Do keep sibling names distinct, keep variable names distinct per entity, and never re-introduce an ancestor below itself.
+
+**Flag entities with more than one aspect.** Pruning must pick one of them (User's Guide p. 168), but the guide documents no `.pes` directive for that choice, so a generated PES cannot pin it and MS4 Me picks at random. If the choice must be fixed in the PES, suggest modeling the alternatives as a specialization whose options each carry one aspect.
 
 **Do NOT write any files in this stage.** Populate the Model Context only.
 
@@ -154,7 +156,7 @@ MODEL_CONTEXT = {
 Present the compact summary below, then wait for `yes` / `edit` / `cancel`. In the same turn, ask the three PES-choice questions:
 
 > 1. For each multi-aspect, what multiplicity should the PES bake in?
-> 2. For each specialization, which option does the PES select (or defer to MS4 Me's interactive pruning)?
+> 2. For each specialization, which option does the PES select? Choices left out are made at random when the model runs (User's Guide pp. 122, 168). For a specialization on a multi-aspect unit, pick per copy (`id0_Vehicle`, `id1_Vehicle`, ...) or one option for every copy; the PES selects on copies, not on the unit (p. 122).
 > 3. A single PES matching these choices, or multiple named PES variants?
 
 **Summary format (filled from the Model Context):**
@@ -197,7 +199,7 @@ Variables:
 
 PES choices:
   - multiplicity: {label} = N ({entity})
-  - specialization pick: {entity} -> {chosen_option}
+  - specialization pick: {entity} [{label}] -> {chosen_option}  (PES adds inherit from {chosen_option})
   - variants (if requested): {variant_name_1}, {variant_name_2}
 
 Planned output artifacts:
@@ -224,12 +226,16 @@ Fill these templates:
 
 Helpers the renderer must provide:
 
-- `join_and` — `"A, B and C"` for 3+ children; `"A and B"` (no Oxford comma) for exactly 2; `"A"` for 1.
+- `join_and` — `"A, B and C"` for 3+ children (no comma before `and`, User's Guide p. 174); `"A and B"` for exactly 2; `"A"` for 1.
 - `join_or` — same shape, `or` as connector.
 - `join_and_list` — identical to `join_and` but always `and`-terminated.
 - `is_or_are` — returns `are` when the subject name is plural (ends in `s` and the entity kind is `coupled`), else `is`.
 - `multi_prefix` — returns `"all "` / `"each "` / `""` based on the coupling qualifier.
 - `range_expr` — emits `[lower, upper]` / `(lower, upper)` / mixed bracketing for numeric ranges, or `join_and_list enum_values` for enumerations.
+- `restructure_labels` — the distinct labels in `pes_choices.multiplicities`, ordered bottom-up (deepest multi-aspect first) and joined with `" then "`. A single label when every multi-aspect shares one, as the guide recommends for `index` (p. 126).
+- `first_of_option` — true for the first pick of each option in the PES, so `inherit from {OPT}!` is emitted once per distinct option.
+
+**Specialization picks on multi-aspect units.** Restructuring replaces the unit with copies named `{option}{k}_{unit}`, with `k` counting from 0 (`id0_Vehicle`, p. 121). Write one `specialization_picks` entry per copy, with the copy name as `entity`.
 
 ## Stage 4 — VALIDATE
 
@@ -241,7 +247,12 @@ Validate every artifact. Three checks, run in order:
 resources/scripts/validate-ses.sh /tmp/ses-designer-{system_name}/{system_name}.ses
 ```
 
-The validator runs three internal passes (lexical match, reserved-keyword lint, cross-reference resolution) and exits non-zero on any error with line numbers.
+The validator runs four internal passes and exits non-zero on any error, with line numbers:
+
+1. Lexical match.
+2. Reserved-keyword lint.
+3. Cross-reference resolution. Generated copy names such as `id0_Person` resolve to their unit.
+4. Structural check: valid brothers, strict hierarchy, attached variables, `all`/`each` only on multi-aspect units, no plain self-coupling, and coupling scope with the multi-aspect exception.
 
 **4b. PES grammar check (per PES file).**
 
@@ -249,7 +260,7 @@ The validator runs three internal passes (lexical match, reserved-keyword lint, 
 resources/scripts/validate-pes.sh /tmp/ses-designer-{system_name}/{system_name}.pes
 ```
 
-Checks directive ordering and that every `set multiplicity of LABEL ...` has a prior `restructure multiaspects using LABEL`.
+Checks directive ordering, that every `set multiplicity of LABEL ...` label appears in an earlier `restructure multiaspects using ...!` line, and that every `inherit from OPT!` follows a `select OPT from ... for ...!`. Rejects the label-less `select OPT for ENTITY!` form.
 
 **4c. Mermaid render.**
 

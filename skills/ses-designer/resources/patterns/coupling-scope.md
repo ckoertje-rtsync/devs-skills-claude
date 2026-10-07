@@ -1,24 +1,26 @@
 # Pattern — Coupling Scope
 
-MS4 Me restricts where a coupling may run. The `ses-designer` skill enforces these rules at DISCOVER time; violations are hard errors in the validator.
+MS4 Me restricts where a coupling may run (User's Guide p. 176). The `ses-designer` skill enforces these rules at DISCOVER time, and `validate-ses.sh` reports violations as structural errors.
 
 ## Legal coupling endpoints
 
-A coupling `from the {ASPECT} perspective, {X} sends {M} to {Y}!` is legal only when one of these is true:
+The guide's rule (p. 176): messages pass only between a subsystem and its parent, or between siblings in the same aspect. "The only exception to this rule is that the subsystem of a multi-aspect can send messages to siblings of its parent system."
 
-1. `{X}` is the parent of `{Y}` in `{ASPECT}`, or `{Y}` is the parent of `{X}` — external input / external output coupling.
-2. `{X}` and `{Y}` are siblings under `{ASPECT}` — internal coupling.
-3. `{X}` and `{Y}` are two replicas (or groups of replicas) inside the same multi-aspect whose containing aspect is `{ASPECT}` — multi-aspect coupling (with `all`/`each` qualifiers).
+The exception follows from restructuring. When the `.pes` expands a multi-aspect, the unit's copies become children of the unit's grandparent, inside the grandparent's aspect, and the multi-aspect is removed (p. 121). So in a coupling `from the {ASPECT} perspective, {X} sends {M} to {Y}!`, each of `{X}` and `{Y}` must be:
 
-If the lowest common ancestor of `{X}` and `{Y}` has them under *different* aspects, the coupling is illegal even if both entities exist.
+1. the parent entity of `{ASPECT}` — external input / external output coupling with a child, or
+2. a child entity of `{ASPECT}` — internal coupling with a sibling, or
+3. the unit of a multi-aspect whose parent is a child of `{ASPECT}` — the exception. The unit then couples with its parent's siblings, with `{ASPECT}`'s parent, and with other such units, usually through `all`/`each` qualifiers.
+
+A generated copy name (`id0_Person`, `tall_Boy`) counts as its unit, and a specialization option counts as its general entity. If no aspect with the named label contains both endpoints this way, the coupling is illegal, even if both entities exist. The multi-aspect's own perspective (`multiProcessor`, `multiPerson`) is never the right aspect to name, because restructuring removes it.
 
 ## How the skill picks endpoints
 
 When DISCOVER asks *"who sends a message to whom?"*, the choices offered to the user are filtered by scope:
 
 - The user picks an aspect first.
-- The list of candidate senders is that aspect's parent plus its children (plus any multi-aspect unit beneath them).
-- The list of candidate receivers is the same set, minus the chosen sender.
+- The list of candidate senders is that aspect's parent, its children, and the units of any multi-aspects hanging from those children.
+- The list of candidate receivers is the same set, minus the chosen sender (unless both ends are `all X`).
 - For multi-aspect endpoints, the skill offers `all X` / `each X` qualifiers only when `X` is a multi-aspect unit.
 
 ## No self-coupling
@@ -31,30 +33,39 @@ If two entities truly need to exchange messages but live in different aspects of
 
 ## Examples
 
-**Legal** (sibling under aspect `top`):
-
-```
-from the top perspective, SimpleWorkFlow is made of GeneratorOfJobs, Processors and Transducer!
-from the top perspective, GeneratorOfJobs sends Job to Processors!
-```
-
-**Legal** (parent → child under aspect `Dialog`):
+**Legal** (siblings under aspect `Dialog`, p. 17):
 
 ```
 from the Dialog perspective, HelloWorldSES is made of HelloWorld and BackAtYou!
 from the Dialog perspective, HelloWorld sends Hello to BackAtYou!
 ```
 
-**Legal** (multi-aspect, all-to-all):
+**Legal** (parent ↔ child under aspect `enclave`, p. 126):
+
+```
+from the enclave perspective, Enclave is made of DBServer and Clients!
+from the enclave perspective, DBServer sends DBUpdate to Enclave!
+from the enclave perspective, Enclave sends DBUpdate to DBServer!
+```
+
+**Legal** (multi-aspect unit and its parent's siblings, the exception, p. 127). `Processor`'s parent is `Processors`, and `GeneratorOfJobs` and `Transducer` are siblings of `Processors` under `top`:
 
 ```
 from the top perspective, SimpleWorkFlow is made of GeneratorOfJobs, Processors and Transducer!
 from the multiProcessor perspective, Processors are made of more than one Processor!
 Processor can be id in index!
 from the top perspective, GeneratorOfJobs sends Job to all Processor!
+from the top perspective, all Processor sends outJob to Transducer as inSolved!
 ```
 
-**Illegal** (cross-aspect — no shared ancestor aspect):
+**Legal** (units of two different multi-aspects, and the enclosing parent, p. 125):
+
+```
+from the dating perspective, all Girl sends NiceToMeetYou to all Boy!
+from the dating perspective, DatingGame sends MakeInvitation to all Boy!
+```
+
+**Illegal** (cross-aspect — no single aspect contains both endpoints):
 
 ```
 from the structural perspective, Car is made of Engine and Chassis!

@@ -4,11 +4,15 @@
 # Checks:
 #   - First line is `set name of model as NAME!`.
 #   - Second line is `pruned from NAME.ses!`.
-#   - Every subsequent non-blank, non-comment line matches one of the five
-#     PES directives (`restructure`, `set multiplicity`, `select`, `write class files`).
+#   - Every subsequent non-blank, non-comment line matches one of the PES
+#     directives (`restructure`, `set multiplicity`, `select`, `inherit from`,
+#     `mergeAll from`, `don't select`, `write class files`); see
+#     reference/pes-grammar.md.
 #   - Last non-blank line is `write class files!`.
 #   - Every `set multiplicity of LABEL as [N] for ENTITY!` is preceded (somewhere
-#     earlier) by `restructure multiaspects using LABEL!` with the same label.
+#     earlier) by a `restructure multiaspects using ...!` that names LABEL
+#     (alone or in an `A then B` list).
+#   - Every `inherit from OPT!` is preceded by a `select OPT from ... for ...!`.
 #
 # Usage: validate-pes.sh <file.pes>
 
@@ -29,13 +33,18 @@ ID='[A-Za-z_][A-Za-z0-9_-]*'
 
 RE_SET_NAME="^set name of model as ${ID}!$"
 RE_PRUNED_FROM="^pruned from ${ID}\.ses!$"
-RE_RESTRUCTURE="^restructure multiaspects using ${ID}!$"
+RE_RESTRUCTURE="^restructure multiaspects using ${ID}( then ${ID})*!$"
 RE_MULTIPLICITY="^set multiplicity of ${ID} as \[[0-9]+\] for ${ID}!$"
-RE_SELECT="^select ${ID} for ${ID}!$"
+RE_SELECT="^select ${ID} from ${ID} for ${ID}!$"
+RE_SELECT_OLD="^select ${ID} for ${ID}!$"
+RE_INHERIT="^inherit from ${ID}!$"
+RE_MERGEALL="^mergeAll from ${ID}\.ses!$"
+RE_DONT_SELECT="^don't select ${ID} under ${ID}!$"
 RE_WRITE="^write class files!$"
 
 errors=()
 declared_restructure_labels=()
+selected_options=()
 
 # Collect non-blank, non-comment lines with their original line numbers.
 lines=()
@@ -84,10 +93,12 @@ for (( i = 0; i < n; i++ )); do
     fi
 
     if [[ "$line" =~ $RE_RESTRUCTURE ]]; then
-        # extract label
+        # extract labels ("using A!" or "using A then B!")
         rest="${line%!}"
-        label="${rest##* }"
-        declared_restructure_labels+=("$label")
+        rest="${rest#restructure multiaspects using }"
+        for label in ${rest// then / }; do
+            declared_restructure_labels+=("$label")
+        done
         continue
     fi
 
@@ -108,6 +119,30 @@ for (( i = 0; i < n; i++ )); do
     fi
 
     if [[ "$line" =~ $RE_SELECT ]]; then
+        rest="${line#select }"
+        selected_options+=("${rest%% from *}")
+        continue
+    fi
+
+    if [[ "$line" =~ $RE_SELECT_OLD ]]; then
+        errors+=("L${ln}: 'select X for E!' is missing the specialization label; write 'select X from LABEL for E!' (guide pp. 122, 157)")
+        continue
+    fi
+
+    if [[ "$line" =~ $RE_INHERIT ]]; then
+        rest="${line%!}"
+        opt="${rest#inherit from }"
+        found=0
+        for o in "${selected_options[@]}"; do
+            if [[ "$o" == "$opt" ]]; then found=1; break; fi
+        done
+        if [[ $found -eq 0 ]]; then
+            errors+=("L${ln}: 'inherit from ${opt}!' without a prior 'select ${opt} from ... for ...!'")
+        fi
+        continue
+    fi
+
+    if [[ "$line" =~ $RE_MERGEALL || "$line" =~ $RE_DONT_SELECT ]]; then
         continue
     fi
 

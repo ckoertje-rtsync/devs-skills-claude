@@ -32,7 +32,7 @@ Ask the user these questions in order until one returns `yes`:
 4. *"Does this entity differ only in a configurable numeric/string value?"* → variable + range.
 5. Otherwise → atomic leaf.
 
-The first `yes` wins. An entity can layer these (e.g. an `Engine` aspect *containing* a `Block` that specializes into `InlineBlock | VBlock`) but a single entity at a single level must pick one mode — this is the alternating-mode axiom in action.
+The first `yes` wins for the question at hand. An entity can still combine modes: one entity may have aspects *and* specializations, and several of each. In the User's Guide, `Enclave` has an `enclave` aspect and an `index` specialization (p. 125), and `Person` has two specializations, `index` and `height` (pp. 121–122). Alternating mode only says that entities alternate with aspects and specializations along every path (see `../reference/ses-axioms.md`).
 
 ## Combined example
 
