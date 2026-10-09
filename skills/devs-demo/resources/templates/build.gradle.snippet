@@ -1,0 +1,11 @@
+// Demo data (demos/): per scenario N replications for the statistics panel and one traced
+// replication (same seed as replication 0) for the animation. -Preps -Pseed
+task buildDemoData(type: JavaExec, dependsOn: compileJava) {
+    description = "Write demos/data/demo-data.{json,js} for the demo page."
+    group = "simulation"
+    mainClass = '__PACKAGE__.DemoDataRunner'
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = projectDir            // harness code resolves src/... from user.dir
+    args = [project.findProperty('reps') ?: '200',
+            project.findProperty('seed') ?: '2349991']
+}

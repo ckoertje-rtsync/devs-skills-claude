@@ -1,0 +1,1334 @@
+<!doctype html>
+<!-- devs-demo skill, worked example: the sda-pwsa NTN flare demo (commit 3301641).
+     Adaptation points for a new model are listed in docs/PAGE_DESIGN.md: CAT, kindOf, pathTaken,
+     flareStepOf, buildTopo, renderRing geometry, renderSummary/renderMorphism/flareSentence,
+     renderStrip/renderMultis series names, renderLegacy. Everything else is model-agnostic. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NTN Flare Demo</title>
+<style>
+/* Layout: a control strip, then the ring beside replay and log, then full-width lanes, statistics and morphism.
+   Colors: the validated data-viz reference palette (series slots 1-7, status colors, chart chrome); phase
+   categories reuse series slots so the ring, the lanes and the charts read as one system in both themes. */
+:root {
+  color-scheme: light;
+  --bg: #f9f9f7; --surface: #fcfcfb; --fg: #0b0b0b; --fg-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10); --wash: rgba(11,11,11,.05);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s6: #008300; --s7: #4a3aa7;
+  --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+  --accent: #2a78d6;
+  --cat-passive: #c3c2b7; --cat-connecting: #2a78d6; --cat-sending: #1baf7a; --cat-waiting: #eda100; --cat-failed: #d03b3b; --linked: #008300;
+  --earth: #dfe6ee; --earth-2: #b8c7d6; --sun: #eda100; --flare: #eb6834;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --surface: #1a1a19; --fg: #ffffff; --fg-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s6: #008300; --s7: #9085e9;
+    --accent: #3987e5;
+    --cat-passive: #383835; --cat-connecting: #3987e5; --cat-sending: #199e70; --cat-waiting: #c98500; --cat-failed: #d03b3b; --linked: #008300;
+    --earth: #22303d; --earth-2: #34485c; --sun: #c98500; --flare: #d95926;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --fg: #ffffff; --fg-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s6: #008300; --s7: #9085e9;
+  --accent: #3987e5;
+  --cat-passive: #383835; --cat-connecting: #3987e5; --cat-sending: #199e70; --cat-waiting: #c98500; --cat-failed: #d03b3b; --linked: #008300;
+  --earth: #22303d; --earth-2: #34485c; --sun: #c98500; --flare: #d95926;
+}
+
+* { box-sizing: border-box; }
+html { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font); min-height: 100%; }
+.wrap { max-width: 1600px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 40px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; margin-bottom: 14px; }
+header h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header .tag { color: var(--fg-2); font-size: 13px; }
+header .meta { color: var(--muted); font-size: 12px; font-family: var(--mono); margin-left: auto; }
+.app { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 1100px) {
+  .app { grid-template-columns: 7fr 5fr; grid-template-areas: "controls controls" "ring side" "lanes lanes" "stats stats" "morph morph"; }
+  #controls { grid-area: controls; } #ring-panel { grid-area: ring; } #side { grid-area: side; }
+  #lanes-panel { grid-area: lanes; } #stats-panel { grid-area: stats; } #morph-panel { grid-area: morph; }
+}
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.panel h3 { font-size: 13px; margin: 14px 0 6px; color: var(--fg-2); font-weight: 600; }
+.sub { color: var(--muted); font-size: 12px; margin: -4px 0 8px; }
+#side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+#log-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* controls */
+.row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.field { display: flex; align-items: center; gap: 8px; }
+.field > label, .field > span.lbl { font-size: 12px; color: var(--fg-2); }
+select, button, input[type=file] { font: inherit; color: var(--fg); }
+select { background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 5px 8px; min-height: 34px; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+.seg button { background: var(--surface); border: 0; padding: 6px 12px; min-height: 34px; cursor: pointer; color: var(--fg-2); }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+button.btn { background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 6px 12px; min-height: 34px; cursor: pointer; }
+button.btn:hover, .seg button:hover { background: var(--wash); }
+button.btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible, .logrow:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#summary { margin: 10px 0 0; font-size: 13px; color: var(--fg-2); }
+#summary b { color: var(--fg); font-weight: 600; }
+.banner { background: var(--wash); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-top: 10px; }
+.banner.err { border-color: var(--crit); }
+.dropzone { border: 1px dashed var(--axis); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--muted); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+body.dropping .dropzone { border-color: var(--accent); color: var(--fg); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--fg-2); margin: 6px 0 2px; align-items: center; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid transparent; }
+.legend i.sq { border-radius: 2px; }
+.legend i.dm { transform: rotate(45deg); border-radius: 1px; }
+.legend i.ring { background: var(--surface); border-color: var(--s1); border-width: 2px; }
+.legend i.line { height: 3px; width: 16px; border-radius: 2px; vertical-align: 2px; }
+
+/* ring */
+svg { display: block; width: 100%; height: auto; }
+.ring-svg text { font-family: var(--font); fill: var(--fg); }
+.ring-svg .earth { fill: var(--earth); stroke: var(--earth-2); stroke-width: 1.5; }
+.ring-svg .orbit { fill: none; stroke: var(--grid); stroke-width: 1; }
+.ring-svg .link { fill: none; stroke: var(--axis); stroke-width: 2; stroke-linecap: round; }
+.ring-svg .link.used { stroke: var(--s1); stroke-width: 3; }
+.ring-svg .link.pending { stroke: var(--s1); stroke-dasharray: 4 4; }
+.ring-svg .link.dead { stroke: var(--crit); stroke-dasharray: 5 5; }
+.ring-svg .link.ef { stroke-dasharray: 3 5; stroke-width: 1.5; }
+.ring-svg .node .body { stroke: var(--surface); stroke-width: 2; }
+.ring-svg .node.cat-passive .body { fill: var(--cat-passive); }
+.ring-svg .node.cat-connecting .body { fill: var(--cat-connecting); }
+.ring-svg .node.cat-sending .body { fill: var(--cat-sending); }
+.ring-svg .node.cat-waiting .body { fill: var(--cat-waiting); }
+.ring-svg .node.cat-failed .body { fill: var(--cat-failed); }
+.ring-svg .node.linked .body { stroke: var(--linked); stroke-width: 3; }
+.ring-svg .node .glyph { fill: #fff; font-size: 18px; font-weight: 700; text-anchor: middle; dominant-baseline: central; display: none; pointer-events: none; }
+.ring-svg .node.cat-failed .glyph { display: block; }
+.ring-svg .node .name { font-size: 13px; font-weight: 600; }
+.ring-svg .node .phase { font-size: 10.5px; fill: var(--fg-2); }
+.ring-svg .node .sigma { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+.ring-svg .node .halo { fill: none; stroke: var(--flare); stroke-width: 2; stroke-dasharray: 4 3; display: none; }
+.ring-svg .node.flared .halo { display: block; }
+.ring-svg .node .hit { fill: transparent; cursor: pointer; }
+.ring-svg .node.active .body { filter: brightness(1.08); }
+.ring-svg .node.pinned .hit { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 2 3; }
+.ring-svg .sun { fill: var(--sun); }
+.ring-svg .sunray { stroke: var(--sun); stroke-width: 2; stroke-linecap: round; }
+.ring-svg .flare-ray { stroke: var(--flare); stroke-width: 4; stroke-linecap: round; opacity: 0; }
+.ring-svg .flare-ray.on { opacity: 1; animation: flash .7s ease-out 1; }
+@keyframes flash { 0% { opacity: 0; stroke-width: 8; } 30% { opacity: 1; } 100% { opacity: 1; stroke-width: 4; } }
+.ring-svg .efbox rect { fill: var(--surface); stroke: var(--axis); stroke-width: 1.5; rx: 4; }
+.ring-svg .efbox.cat-sending rect { fill: var(--cat-sending); }
+.ring-svg .efbox.cat-waiting rect { fill: var(--cat-waiting); }
+.ring-svg .efbox.pulse rect { stroke: var(--s7); stroke-width: 3; }
+.ring-svg .efbox text { font-size: 10.5px; text-anchor: middle; dominant-baseline: central; }
+.ring-svg .caption { font-size: 10.5px; fill: var(--muted); }
+.ring-svg .token.kind-hs circle { fill: var(--s1); stroke: var(--surface); stroke-width: 2; }
+.ring-svg .token.kind-ack circle { fill: var(--surface); stroke: var(--s1); stroke-width: 2.5; }
+.ring-svg .token.kind-data rect { fill: var(--s3); stroke: var(--surface); stroke-width: 2; }
+.ring-svg .token.kind-start rect, .ring-svg .token.kind-report rect { fill: var(--s7); stroke: var(--surface); stroke-width: 2; }
+.ring-svg .token.kind-flare circle { fill: var(--flare); stroke: var(--surface); stroke-width: 2; }
+#detail { margin-top: 8px; font-size: 13px; min-height: 44px; }
+#detail .kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; }
+#detail .kv dt { color: var(--muted); }
+#detail .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+#detail .title { font-weight: 600; margin-bottom: 4px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #fff; vertical-align: 1px; }
+.pill.cat-passive { background: var(--cat-passive); color: var(--fg); }
+.pill.cat-connecting { background: var(--cat-connecting); }
+.pill.cat-sending { background: var(--cat-sending); }
+.pill.cat-waiting { background: var(--cat-waiting); color: #111; }
+.pill.cat-failed { background: var(--cat-failed); }
+
+/* replay */
+.replay-controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.replay-controls input[type=range] { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
+.readout { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.readout b { font-weight: 600; }
+#stepdesc { margin-top: 8px; font-size: 13px; border-top: 1px solid var(--border); padding-top: 8px; min-height: 48px; }
+#stepdesc div { padding: 1px 0; }
+#stepdesc .note { color: var(--good); font-weight: 600; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-2); }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* log */
+#log { overflow-y: auto; max-height: 420px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; }
+.logrow { display: grid; grid-template-columns: 34px 86px 1fr; gap: 8px; padding: 4px 8px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--fg); text-align: left; width: 100%; cursor: pointer; font: inherit; font-size: 12.5px; }
+.logrow:hover { background: var(--wash); }
+.logrow.current { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.logrow .k, .logrow .t { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.logrow.delivery .t { color: var(--good); font-weight: 600; }
+.logrow.flare .t { color: var(--flare); font-weight: 600; }
+.logrow .what { min-width: 0; overflow-wrap: anywhere; }
+
+/* lanes */
+.lanes-wrap { overflow-x: auto; }
+.lanes-wrap svg { min-width: 640px; }
+.lane-title { font-size: 12px; color: var(--fg-2); margin: 10px 0 2px; display: flex; gap: 10px; align-items: baseline; }
+.lane-title b { color: var(--fg); }
+.lane-title.active b { color: var(--accent); }
+.lane-svg text { font-family: var(--font); fill: var(--fg); font-size: 10px; }
+.lane-svg .rowlabel { font-size: 11px; fill: var(--fg-2); }
+.lane-svg .seg { stroke: none; }
+.lane-svg .seg.cat-passive { fill: var(--cat-passive); opacity: .55; }
+.lane-svg .seg.cat-connecting { fill: var(--cat-connecting); }
+.lane-svg .seg.cat-sending { fill: var(--cat-sending); }
+.lane-svg .seg.cat-waiting { fill: var(--cat-waiting); }
+.lane-svg .seg.cat-failed { fill: var(--cat-failed); }
+.lane-svg .seglabel { font-size: 9px; fill: #fff; pointer-events: none; }
+.lane-svg .seg.cat-passive + .seglabel, .lane-svg .seglabel.dark { fill: var(--fg); }
+.lane-svg .arrow { stroke-width: 1.5; fill: none; }
+.lane-svg .arrow.kind-hs, .lane-svg .arrow.kind-ack { stroke: var(--s1); }
+.lane-svg .arrow.kind-ack { stroke-dasharray: 3 2; }
+.lane-svg .arrow.kind-data { stroke: var(--s3); }
+.lane-svg .arrow.kind-start, .lane-svg .arrow.kind-report { stroke: var(--s7); }
+.lane-svg .arrow.kind-flare { stroke: var(--flare); }
+.lane-svg .tick { stroke: var(--grid); stroke-width: 1; }
+.lane-svg .ticklabel { fill: var(--muted); font-family: var(--mono); font-size: 9px; }
+.lane-svg .mark-flare { stroke: var(--flare); stroke-dasharray: 4 3; stroke-width: 1.5; }
+.lane-svg .mark-delivery { stroke: var(--good); stroke-width: 1.5; }
+.lane-svg .marklabel { font-size: 10px; fill: var(--fg-2); }
+.lane-svg .cursor { stroke: var(--fg); stroke-width: 2; }
+.lane-svg .cursor.ghost { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.lane-svg .colhit { fill: transparent; cursor: pointer; }
+.lane-svg .colhit:hover { fill: var(--wash); }
+
+/* charts */
+.chart-svg text { font-family: var(--font); fill: var(--fg-2); font-size: 11px; }
+.chart-svg .axis { stroke: var(--axis); stroke-width: 1; }
+.chart-svg .grid { stroke: var(--grid); stroke-width: 1; }
+.chart-svg .ticklabel { fill: var(--muted); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 10px; }
+.chart-svg .rowlabel { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.chart-svg .dot { fill: var(--s2); opacity: .45; }
+.chart-svg .box { fill: none; stroke: var(--s2); stroke-width: 1.5; }
+.chart-svg .whisker { stroke: var(--s2); stroke-width: 1; }
+.chart-svg .mean { fill: var(--surface); stroke: var(--s2); stroke-width: 2; }
+.chart-svg .base { fill: var(--s1); stroke: var(--surface); stroke-width: 2; }
+.chart-svg .range { stroke: var(--s2); stroke-width: 2; stroke-linecap: round; }
+.chart-svg .median { fill: var(--s2); stroke: var(--surface); stroke-width: 2; }
+.chart-svg .stat { fill: var(--fg); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11px; }
+.chart-svg .statlbl { fill: var(--muted); font-size: 11px; }
+.chart-svg .never { fill: var(--muted); font-style: italic; }
+.chart-svg .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-svg .line.s1, .chart-svg .pt.s1 { stroke: var(--s1); }
+.chart-svg .line.s2, .chart-svg .pt.s2 { stroke: var(--s2); }
+.chart-svg .pt { stroke-width: 2; }
+.chart-svg .pt.s1 { fill: var(--s1); stroke: var(--surface); }
+.chart-svg .pt.s2 { fill: var(--s2); stroke: var(--surface); }
+.chart-svg .endlabel { fill: var(--fg); font-size: 11px; font-weight: 600; }
+.chart-svg .crosshair { stroke: var(--fg-2); stroke-width: 1; opacity: 0; }
+.chart-svg .hit { fill: transparent; }
+.chart-svg .title { fill: var(--fg); font-size: 12px; font-weight: 600; }
+.multis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px) { .multis { grid-template-columns: 1fr; } }
+.multi { border: 1px solid var(--border); border-radius: 6px; padding: 4px; cursor: pointer; background: var(--surface); }
+.multi:hover { background: var(--wash); }
+.multi.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.15); max-width: 280px; }
+.tip b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.tip .k { color: var(--muted); }
+
+/* tables */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.flag { color: var(--crit); font-weight: 600; }
+.morph-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 900px) { .morph-grid { grid-template-columns: 1fr 1.2fr; } }
+.sentence { font-size: 13.5px; margin: 10px 0 0; padding: 8px 10px; background: var(--wash); border-radius: 6px; }
+.empty { padding: 30px 10px; text-align: center; color: var(--muted); }
+
+@media (max-width: 760px) {
+  header h1 { font-size: 19px; }
+  header .meta { margin-left: 0; }
+  .ring-svg .node .sigma { display: none; }
+  .ring-svg .node .name { font-size: 15px; }
+  .ring-svg .node .phase { font-size: 12px; }
+  button.btn, .seg button { min-height: 40px; }
+  .logrow { grid-template-columns: 30px 70px 1fr; }
+  #log { max-height: 280px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-svg .flare-ray.on { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>NTN Flare Demo</h1>
+  <span class="tag">One message across the 8-satellite ring, Base (CellSAT) vs Markov (SatCTM), with and without a solar flare on X0Y1</span>
+  <span class="meta" id="meta"></span>
+</header>
+
+<div class="app">
+  <section class="panel" id="controls">
+    <h2>Scenario</h2>
+    <div class="row">
+      <div class="field"><label for="ef">Parameter instance</label><select id="ef"></select></div>
+      <div class="field"><span class="lbl">Resolution</span><div class="seg" id="res-seg" role="group" aria-label="Resolution"></div></div>
+      <div class="field"><span class="lbl">Flare</span><div class="seg" id="flare-seg" role="group" aria-label="Flare"></div></div>
+      <div class="dropzone"><span>Other bundle:</span><input type="file" id="bundle-file" accept=".json,.js"><span>or drop demo-data.json here</span></div>
+    </div>
+    <p id="summary"></p>
+    <div id="banner" class="banner" hidden></div>
+  </section>
+
+  <section class="panel" id="ring-panel">
+    <h2>Ring</h2>
+    <div id="ring-host"></div>
+    <div class="legend" id="ring-legend">
+      <span><i style="background:var(--cat-passive)"></i>passive</span>
+      <span><i style="background:var(--cat-connecting)"></i>connecting</span>
+      <span><i style="background:var(--cat-sending)"></i>sending</span>
+      <span><i style="background:var(--cat-waiting)"></i>waiting</span>
+      <span><i style="background:var(--cat-failed)"></i>failed</span>
+      <span><i class="ring" style="border-color:var(--linked)"></i>connected</span>
+      <span style="margin-left:6px"><i style="background:var(--s1)"></i>request</span>
+      <span><i class="ring"></i>ack</span>
+      <span><i class="sq" style="background:var(--s3)"></i>data</span>
+      <span><i class="dm" style="background:var(--s7)"></i>start / report</span>
+      <span><i style="background:var(--flare)"></i>flare</span>
+    </div>
+    <div id="detail"><span class="muted">Hover or click a satellite or ground station for its state and link budget.</span></div>
+  </section>
+
+  <div id="side">
+    <section class="panel" id="replay-panel">
+      <h2>Replay</h2>
+      <div class="replay-controls">
+        <button class="btn" id="btn-first" title="First step (Home)">⏮</button>
+        <button class="btn" id="btn-prev" title="Previous step (←)">◀</button>
+        <button class="btn" id="btn-play" title="Play / pause (Space)" aria-pressed="false">▶ Play</button>
+        <button class="btn" id="btn-next" title="Next step (→)">▶</button>
+        <button class="btn" id="btn-last" title="Last step (End)">⏭</button>
+        <input type="range" id="step-slider" min="0" max="0" value="0" aria-label="Step">
+        <div class="field"><label for="speed">Speed</label><select id="speed"><option value="1400">slow</option><option value="700" selected>normal</option><option value="300">fast</option></select></div>
+        <label class="check"><input type="checkbox" id="stop-delivery" checked>Stop at delivery</label>
+      </div>
+      <div class="readout"><span>t = <b id="ro-t">0</b></span><span>Δt = <b id="ro-dt">0</b></span><span>step <b id="ro-k">0</b> / <b id="ro-K">0</b></span><span id="ro-result"></span></div>
+      <div id="stepdesc"></div>
+    </section>
+    <section class="panel" id="log-panel">
+      <h2>Event log</h2>
+      <p class="sub">One row per DEVS step (one imminent set). Click a row to jump.</p>
+      <div id="log"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="lanes-panel">
+    <h2>Phase lanes, Base and Markov on the same input</h2>
+    <p class="sub">Columns are steps, uniformly spaced; the time axis is irregular by design. The second lane's cursor follows the active lane's simulation time.</p>
+    <div class="legend">
+      <span><i style="background:var(--cat-passive)"></i>passive</span>
+      <span><i style="background:var(--cat-connecting)"></i>connecting</span>
+      <span><i style="background:var(--cat-sending)"></i>sending</span>
+      <span><i style="background:var(--cat-waiting)"></i>waiting</span>
+      <span><i style="background:var(--cat-failed)"></i>failed</span>
+      <span><i class="line" style="background:var(--s1)"></i>request / ack</span>
+      <span><i class="line" style="background:var(--s3)"></i>data</span>
+      <span><i class="line" style="background:var(--s7)"></i>start / report</span>
+      <span><i class="line" style="background:var(--flare)"></i>flare</span>
+    </div>
+    <div id="lanes-host"></div>
+  </section>
+
+  <section class="panel" id="stats-panel">
+    <h2>Delivery time statistics</h2>
+    <p class="sub" id="stats-sub"></p>
+    <div class="legend">
+      <span><i class="dm" style="background:var(--s1)"></i>Base (deterministic)</span>
+      <span><i style="background:var(--s2);opacity:.6"></i>Markov replications</span>
+      <span><i class="ring" style="border-color:var(--s2)"></i>Markov mean</span>
+      <span><i class="line" style="background:var(--s2)"></i>Markov quartiles and range</span>
+    </div>
+    <div id="strip-host"></div>
+    <h3>All nine instances</h3>
+    <p class="sub">Shared log axis. Base tick, Markov range with median, for no flare (top) and flare (bottom). Click a cell to select the instance.</p>
+    <div class="multis" id="multi-host"></div>
+    <h3>Phase I: average delivery time vs cost</h3>
+    <p class="sub">Legacy Monte Carlo (1000 runs per point) from the MS4 Me harness: cost sweep with MeanLatency = 10 / Cost and the old SignalToInterference physics, flare at TFlare = 1. Not comparable with the traces above.</p>
+    <div id="legacy-host"></div>
+  </section>
+
+  <section class="panel" id="morph-panel">
+    <h2>Morphism: base parameters to the lumped pair</h2>
+    <p class="sub">The ten CellSAT parameters of the instance, the link budget derived from them, and the (P_Connect, Expect_Latency) the JSON contract assigns to SatCTM.</p>
+    <div class="morph-grid"><div id="morph-base"></div><div id="morph-budget"></div></div>
+    <p class="sentence" id="morph-sentence"></p>
+  </section>
+</div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="data/demo-data.js"></script>
+<script>
+(function () {
+'use strict';
+
+/* ======================= pure logic (also run by test/check-demo.js) ======================= */
+
+var CAT = {
+  CellSAT: { waitForSignal: 'passive', testHandshake: 'connecting', Connected: 'passive', sendHandshake: 'sending', waitForConnection: 'waiting', sendData: 'sending' },
+  SatCTM: { waitForSignal: 'passive', tryToConnect: 'connecting', timeToHandshake: 'connecting', Failed: 'failed', connected: 'passive', sendHandshake: 'sending', waitForConnection: 'waiting', sendData: 'sending' },
+  GS: { waitForSignal: 'passive', SendSignal: 'sending', WaitForHandshake: 'waiting', TestForConnection: 'connecting', SendReport: 'sending', SendData: 'sending' },
+  GenMsg: { SendStart: 'sending', passive: 'passive' },
+  GenFlare: { SendFlare: 'waiting', passive: 'passive' },
+  TransdFlare: { waitForInput: 'passive', Record: 'sending' }
+};
+var LINKED = { Connected: true, connected: true };
+var UNITS = { Frequency: 'Hz', Bandwidth: 'Hz', Path_Distance: 'm', TX_Power: 'dBW', TX_Antenna: 'dBi', RX_Antenna: 'dBi',
+  System_Noise_Temperature: 'K', Environment_Loss: 'dB', Spectral_Efficency: 'bit/s/Hz', Packet_Size: 'bytes' };
+
+function isPassive(sigma) { return sigma == null || !isFinite(sigma) || sigma >= 1e300; }
+
+function fmtT(x) {
+  if (x == null || !isFinite(x) || x >= 1e300) return '∞';
+  if (x === 0) return '0';
+  var a = Math.abs(x);
+  if (a >= 0.01 && a < 1e4) return String(Number(x.toPrecision(3)));
+  return x.toExponential(2);
+}
+function fmtV(x) {
+  if (typeof x === 'number') { if (!isFinite(x)) return '∞'; if (x === 0) return '0'; var a = Math.abs(x); return (a >= 0.001 && a < 1e5) ? String(Number(x.toPrecision(4))) : x.toExponential(3); }
+  return String(x);
+}
+function fmtP(p) { if (p == null || !isFinite(p)) return '∞'; if (p === 0) return '0'; return p >= 0.99 ? p.toFixed(6) : p.toExponential(3); }
+
+function scaleLog(dom, range) {
+  var l0 = Math.log10(dom[0]), l1 = Math.log10(dom[1]);
+  return function (v) { return range[0] + (Math.log10(v) - l0) / (l1 - l0) * (range[1] - range[0]); };
+}
+function ticksLog(lo, hi) {
+  var out = [], e0 = Math.ceil(Math.log10(lo) - 1e-9), e1 = Math.floor(Math.log10(hi) + 1e-9);
+  for (var e = e0; e <= e1; e++) out.push(Math.pow(10, e));
+  return out;
+}
+function fmtTick(v) { var e = Math.round(Math.log10(v)); return Math.abs(Math.pow(10, e) - v) <= 1e-9 * v ? '1e' + e : fmtT(v); }
+function logDomain(values, fallback) {
+  var v = values.filter(function (x) { return typeof x === 'number' && x > 0 && isFinite(x); });
+  if (!v.length) return fallback || [1e-6, 1e3];
+  var lo = Infinity, hi = -Infinity;
+  v.forEach(function (x) { if (x < lo) lo = x; if (x > hi) hi = x; });
+  var a = Math.floor(Math.log10(lo)), b = Math.ceil(Math.log10(hi));
+  if (b <= a) b = a + 1;
+  return [Math.pow(10, a), Math.pow(10, b)];
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return NaN;
+  var pos = (sorted.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function mean(a) { if (!a.length) return NaN; var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s / a.length; }
+
+function erfc(x) {
+  var z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+  var r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806
+    + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+  return x >= 0 ? r : 2 - r;
+}
+/* Straight port of LinkBudget.java. */
+function linkBudget(p, extraLossDb) {
+  var C = 299792458, extra = extraLossDb || 0;
+  var fspl = 20 * Math.log10(4 * Math.PI * p.Path_Distance * p.Frequency / C);
+  var noise = -228.6 + 10 * Math.log10(p.System_Noise_Temperature) + 10 * Math.log10(p.Bandwidth);
+  var snrDb = p.TX_Power + p.TX_Antenna + p.RX_Antenna - (p.Environment_Loss + extra) - fspl - noise;
+  var ebN0 = Math.pow(10, snrDb / 10) / p.Spectral_Efficency;
+  var ber = 0.5 * erfc(Math.sqrt(ebN0));
+  var pConnect = Math.pow(1 - ber, 8 * p.Packet_Size);
+  var packetTime = 8 * p.Packet_Size / (p.Bandwidth * p.Spectral_Efficency);
+  return { snrDb: snrDb, ber: ber, pConnect: pConnect, packetTime: packetTime, expectedLatency: packetTime / pConnect, usable: pConnect >= 1e-12 };
+}
+/* Behavioral distance v0 point estimates (docs/morphism-quality.md, Section 11.2), no confidence bounds. */
+function deltaStats(base, markov) {
+  var pB = base.successes / base.n, pL = markov.successes / markov.n;
+  var mB = mean(base.tReport), mL = mean(markov.tReport), dT;
+  if (base.successes > 0 && markov.successes > 0) dT = Math.abs(mL - mB) / mB;
+  else if (base.successes === 0 && markov.successes === 0) dT = 0;
+  else dT = 1;
+  var dP = Math.abs(pL - pB);
+  return { pB: pB, pL: pL, mB: mB, mL: mL, dT: dT, dP: dP, d: Math.max(dT, dP) };
+}
+
+function scenarioKey(ef, res, tFlare) { return ef + '|' + res + '|' + (tFlare == null ? 'none' : String(tFlare)); }
+
+function buildTopo(top) {
+  var byName = {}, sats = [];
+  top.models.forEach(function (m) {
+    var info = { name: m.name, cls: m.class, role: m.role, ring: m.ring, label: m.name.replace(/_(CellSAT|SatCTM)$/, '') };
+    byName[m.name] = info;
+    if (m.role === 'sat') sats.push(info);
+  });
+  sats.sort(function (a, b) { return a.ring - b.ring; });
+  var txSat = null, rxSat = null, flareSat = null;
+  top.routes.forEach(function (r) {
+    if (r.from === 'Transmitter_GS' && byName[r.to] && byName[r.to].role === 'sat') txSat = r.to;
+    if (r.to === 'Receiver_GS' && byName[r.from] && byName[r.from].role === 'sat') rxSat = r.from;
+    if (r.from === 'GenFlare' && byName[r.to] && byName[r.to].role === 'sat') flareSat = r.to;
+  });
+  return { byName: byName, sats: sats, N: sats.length, txSat: txSat, rxSat: rxSat, flareSat: flareSat };
+}
+function categoryOf(topo, name, phase) {
+  var info = topo.byName[name], table = info && CAT[info.cls];
+  if (!table) return 'passive';
+  return table[phase] || 'passive';
+}
+function labelOf(topo, name) { var i = topo.byName[name]; return i ? i.label : name; }
+
+/* Which drawn link carries a message, and in which direction along it. */
+function linkFor(from, to, topo) {
+  var a = topo.byName[from], b = topo.byName[to];
+  if (!a || !b) return null;
+  var N = topo.N;
+  if (a.role === 'sat' && b.role === 'sat') {
+    if ((a.ring + 1) % N === b.ring) return { id: 'ring-' + a.ring, fwd: true };
+    if ((b.ring + 1) % N === a.ring) return { id: 'ring-' + b.ring, fwd: false };
+    return null;
+  }
+  if (from === 'Transmitter_GS' && b.role === 'sat') return { id: 'gnd-tx', fwd: true };
+  if (to === 'Transmitter_GS' && a.role === 'sat') return { id: 'gnd-tx', fwd: false };
+  if (to === 'Receiver_GS' && a.role === 'sat') return { id: 'gnd-rx', fwd: true };
+  if (from === 'GenMsg' && to === 'Transmitter_GS') return { id: 'ef-start', fwd: true };
+  if (from === 'GenFlare' && b.role === 'sat') return { id: 'ef-flare', fwd: true };
+  if (from === 'Receiver_GS' && to === 'TransdFlare') return { id: 'ef-report', fwd: true };
+  return null;
+}
+/* Message kind from the sender's phase before its transition (the same ring port carries requests one way and acks the other). */
+function kindOf(m, step) {
+  if (m.from === 'GenMsg') return 'start';
+  if (m.from === 'GenFlare') return 'flare';
+  if (m.port === 'outReport') return 'report';
+  var ev = null;
+  for (var i = 0; i < step.events.length; i++) if (step.events[i].model === m.from && step.events[i].type !== 'ext') { ev = step.events[i]; break; }
+  var p = ev ? ev.phaseBefore : '';
+  if (p === 'testHandshake' || p === 'timeToHandshake') return 'ack';
+  if (p === 'sendHandshake' || p === 'SendSignal') return 'hs';
+  if (p === 'sendData' || p === 'SendData') return 'data';
+  if (p === 'SendReport') return 'report';
+  return 'data';
+}
+function findLast(arr, pred) { for (var i = arr.length - 1; i >= 0; i--) if (pred(arr[i])) return arr[i]; return null; }
+
+/* Hops (request, ack, data steps) and the path the message actually took. */
+function pathTaken(steps) {
+  var hops = [], deliveryStep = null;
+  steps.forEach(function (step, k) {
+    step.msgs.forEach(function (m) {
+      var kind = kindOf(m, step), h;
+      if (kind === 'hs') hops.push({ from: m.from, to: m.to, kHs: k, kAck: null, kData: null });
+      else if (kind === 'ack') { h = findLast(hops, function (x) { return x.from === m.to && x.to === m.from && x.kAck === null; }); if (h) h.kAck = k; }
+      else if (kind === 'data') { h = findLast(hops, function (x) { return x.from === m.from && x.to === m.to && x.kData === null; }); if (h) h.kData = k; }
+      else if (kind === 'report') deliveryStep = k;
+    });
+  });
+  var path = ['Transmitter_GS'], seen = { Transmitter_GS: true }, cur = 'Transmitter_GS';
+  for (;;) {
+    var h = null;
+    for (var i = 0; i < hops.length; i++) {
+      var x = hops[i];
+      if (x.from === cur && !seen[x.to] && (x.kAck !== null || x.to === 'Receiver_GS')) { h = x; break; }
+    }
+    if (!h) break;
+    path.push(h.to); seen[h.to] = true; cur = h.to;
+  }
+  return { hops: hops, path: path, deliveryStep: deliveryStep };
+}
+function flareStepOf(steps) {
+  for (var k = 0; k < steps.length; k++)
+    for (var i = 0; i < steps[k].msgs.length; i++)
+      if (steps[k].msgs[i].from === 'GenFlare' && steps[k].msgs[i].to !== 'TransdFlare') return k;
+  return -1;
+}
+/* states[c]: full state after step c-1 (states[0] = initial); after may be sparse or full. */
+function materialize(trace) {
+  var states = [Object.assign({}, trace.initial)];
+  trace.steps.forEach(function (s) { states.push(Object.assign({}, states[states.length - 1], s.after)); });
+  return states;
+}
+function diffDetail(b, a) {
+  var out = [];
+  Object.keys(a).forEach(function (key) {
+    if (key === 'phase' || key === 'sigma' || key === 'usable') return;
+    var x = b ? b[key] : undefined, y = a[key];
+    if (x === undefined || x === y) return;
+    if (typeof y === 'number' && typeof x === 'number') { if (Math.abs(y - x) > 1e-12 * Math.max(1, Math.abs(x))) out.push(key + ' ' + fmtV(x) + ' → ' + fmtV(y)); }
+    else if (y !== null && y !== undefined) out.push(key + ' → ' + fmtV(y));
+  });
+  return out;
+}
+function describeStep(sc, states, k, topo) {
+  var step = sc.trace.steps[k], before = states[k], after = states[k + 1], lines = [];
+  if (!step) return lines;
+  step.events.forEach(function (ev) {
+    var a = after[ev.model] || {}, b = before[ev.model] || {};
+    var sym = ev.type === 'int' ? 'δint' : ev.type === 'ext' ? 'δext' : 'δcon';
+    var s = labelOf(topo, ev.model) + ' ' + sym + ': ' + ev.phaseBefore + ' → ' + a.phase;
+    if (a.phase === ev.phaseBefore && ev.type !== 'ext') s += ' (holds σ = ' + fmtT(a.sigma) + ')';
+    var outs = step.msgs.filter(function (m) { return m.from === ev.model; });
+    if (ev.type !== 'ext' && outs.length) s += '; out ' + outs.map(function (m) { return m.port + ' → ' + labelOf(topo, m.to) + '.' + m.toPort; }).join(', ');
+    if (ev.in && ev.in.length) s += '; in ' + ev.in.join(', ');
+    var diff = diffDetail(b, a);
+    if (diff.length) s += ' [' + diff.join(', ') + ']';
+    lines.push(s);
+  });
+  return lines;
+}
+function validateBundle(b) {
+  var p = [];
+  if (!b || typeof b !== 'object') return ['The bundle is not a JSON object.'];
+  ['meta', 'instances', 'topology', 'scenarios'].forEach(function (k) { if (!b[k]) p.push('missing section "' + k + '"'); });
+  if (p.length) return p;
+  var expected = b.instances.length * Object.keys(b.topology).length * (b.meta.flareTimes || []).length;
+  if (expected && b.scenarios.length !== expected) p.push('expected ' + expected + ' scenarios, found ' + b.scenarios.length);
+  var seen = {};
+  b.scenarios.forEach(function (sc) {
+    var top = b.topology[sc.resolution];
+    var key = sc.ef + '/' + sc.resolution + '/' + (sc.tFlare == null ? 'none' : sc.tFlare);
+    if (!top) { p.push(key + ': no topology for resolution ' + sc.resolution); return; }
+    var names = {}, cls = {};
+    top.models.forEach(function (m) { names[m.name] = true; cls[m.name] = m.class; });
+    if (!sc.trace || !sc.trace.steps) { p.push(key + ': no trace'); return; }
+    sc.trace.steps.forEach(function (s, k) {
+      s.msgs.forEach(function (m) { if (!names[m.from] || !names[m.to]) note(key + ': unknown endpoint ' + m.from + ' → ' + m.to); });
+      Object.keys(s.after).forEach(function (n) { var c = CAT[cls[n]]; if (!c || !(s.after[n].phase in c)) note('unknown phase ' + (cls[n] || n) + '.' + s.after[n].phase); });
+    });
+  });
+  function note(msg) { if (!seen[msg]) { seen[msg] = true; p.push(msg); } }
+  return p;
+}
+function parseBundleText(txt) {
+  var s = txt.trim();
+  var m = /^window\.NTN_DEMO\s*=\s*/.exec(s);
+  if (m) s = s.slice(m[0].length);
+  if (s.charAt(s.length - 1) === ';') s = s.slice(0, -1);
+  return JSON.parse(s);
+}
+function flareSentence(inst, meta) {
+  var d = inst.derived, f = inst.derivedFlare, L = meta.latencyDegradationFactor;
+  if (!d.usable) return 'This link never closes (pConnect below the ' + fmtV(meta.pConnectFloor) + ' floor): nothing is delivered at either resolution, flare or not.';
+  if (!f.usable) return 'SNR ' + d.snrDb.toFixed(2) + ' dB: a ' + meta.flareLossDb + ' dB flare loss takes the Base link below the floor, so X0Y1 cannot connect and X0Y0 reroutes counter-clockwise after its 10.0 timeout (7 hops). The Markov hop only becomes ×' + L + ' slower.';
+  var factor = f.expectedLatency / d.expectedLatency;
+  return 'SNR ' + d.snrDb.toFixed(2) + ' dB: the ' + meta.flareLossDb + ' dB flare loss makes the Base hop ×' + fmtV(factor) + ' (expected latency ' + fmtT(d.expectedLatency) + ' → ' + fmtT(f.expectedLatency) + '); the Markov hop is always ×' + L + '.';
+}
+
+var api = { CAT: CAT, fmtT: fmtT, fmtV: fmtV, fmtTick: fmtTick, scaleLog: scaleLog, ticksLog: ticksLog, logDomain: logDomain, quantile: quantile, linkBudget: linkBudget,
+  deltaStats: deltaStats, scenarioKey: scenarioKey, buildTopo: buildTopo, categoryOf: categoryOf, linkFor: linkFor, kindOf: kindOf,
+  pathTaken: pathTaken, flareStepOf: flareStepOf, materialize: materialize, describeStep: describeStep, validateBundle: validateBundle,
+  parseBundleText: parseBundleText, flareSentence: flareSentence, isPassive: isPassive };
+if (typeof window !== 'undefined') window.NTNDemo = api;
+if (typeof document === 'undefined') return;
+
+/* ======================= page ======================= */
+
+var S = { b: null, index: {}, ef: null, res: 'Base', tFlare: null, sc: null, topo: null, states: [], hops: [], path: [], deliveryStep: null,
+  flareStep: -1, k: 0, playing: false, timer: null, speedMs: 700, stopAtDelivery: true, pastDelivery: false, pinned: null, hover: null,
+  reduced: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches, ring: null, lanes: {}, anim: null, legacyDone: false };
+
+var $ = function (id) { return document.getElementById(id); };
+var SVG = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, children) {
+  var e = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) { if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
+  (children || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+  return e;
+}
+function svg(tag, attrs, text) {
+  var e = document.createElementNS(SVG, tag);
+  if (attrs) Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+  if (text != null) e.textContent = text;
+  return e;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function setSeg(id, options, value, onPick) {
+  var seg = $(id); clear(seg);
+  options.forEach(function (o) {
+    var b = el('button', { type: 'button', 'aria-pressed': String(o.value === value), text: o.label });
+    b.addEventListener('click', function () { onPick(o.value); });
+    seg.appendChild(b);
+  });
+}
+function fmtFlare(t) { return t == null ? 'No flare' : 'Flare at t = ' + fmtT(t); }
+
+/* ---- bundle loading ---- */
+function loadBundle(b) {
+  var problems = validateBundle(b);
+  var banner = $('banner');
+  if (!b || !b.scenarios || !b.scenarios.length) {
+    banner.hidden = false; banner.className = 'banner err';
+    banner.textContent = 'Could not use that file as a demo bundle: ' + problems.join('; ') + '. Drop demo-data.json or demo-data.js from demos/data.';
+    return;
+  }
+  banner.hidden = !problems.length; banner.className = 'banner';
+  if (problems.length) banner.textContent = 'Bundle loaded with ' + problems.length + ' warning(s): ' + problems.slice(0, 6).join('; ') + (problems.length > 6 ? ' …' : '');
+  S.b = b; S.index = {}; S.legacyDone = false;
+  b.scenarios.forEach(function (sc) { S.index[scenarioKey(sc.ef, sc.resolution, sc.tFlare)] = sc; });
+  var m = b.meta || {};
+  $('meta').textContent = (m.branch || '') + ' @ ' + (m.commit || '?') + ' · ' + (m.generated || '').slice(0, 10) + ' · ' + (m.reps || '?') + ' reps · seed ' + (m.seed || '?');
+  var sel = $('ef'); clear(sel);
+  b.instances.forEach(function (inst) { sel.appendChild(el('option', { value: inst.name, text: inst.name })); });
+  var names = b.instances.map(function (i) { return i.name; });
+  if (names.indexOf(S.ef) < 0) S.ef = names.indexOf('X_Band') >= 0 ? 'X_Band' : names[0];
+  sel.value = S.ef;
+  var resolutions = Object.keys(b.topology);
+  if (resolutions.indexOf(S.res) < 0) S.res = resolutions[0];
+  var flares = m.flareTimes || [null];
+  if (flares.map(String).indexOf(String(S.tFlare)) < 0) S.tFlare = flares[0];
+  setSeg('res-seg', resolutions.map(function (r) { return { value: r, label: r }; }), S.res, function (v) { S.res = v; refreshSeg(); selectScenario(); });
+  setSeg('flare-seg', flares.map(function (f) { return { value: f, label: fmtFlare(f) }; }), S.tFlare, function (v) { S.tFlare = v; refreshSeg(); selectScenario(); renderStats(); });
+  selectScenario();
+  renderStats();
+  renderMorphism();
+}
+function refreshSeg() {
+  Array.prototype.forEach.call($('res-seg').children, function (b) { b.setAttribute('aria-pressed', String(b.textContent === S.res)); });
+  Array.prototype.forEach.call($('flare-seg').children, function (b) { b.setAttribute('aria-pressed', String(b.textContent === fmtFlare(S.tFlare))); });
+}
+function readFile(file) {
+  if (!file) return;
+  file.text().then(function (txt) {
+    var b;
+    try { b = parseBundleText(txt); } catch (e) { b = null; }
+    if (!b) { var banner = $('banner'); banner.hidden = false; banner.className = 'banner err'; banner.textContent = 'Could not read "' + file.name + '" as a demo bundle (not JSON). Drop demo-data.json or demo-data.js from demos/data.'; return; }
+    loadBundle(b);
+  });
+}
+
+/* ---- scenario ---- */
+function selectScenario() {
+  pause();
+  var sc = S.index[scenarioKey(S.ef, S.res, S.tFlare)];
+  if (!sc) { $('summary').textContent = 'This scenario is not in the bundle.'; return; }
+  S.sc = sc;
+  S.topo = buildTopo(S.b.topology[S.res]);
+  S.states = materialize(sc.trace);
+  var pt = pathTaken(sc.trace.steps);
+  S.hops = pt.hops; S.path = pt.path; S.deliveryStep = pt.deliveryStep;
+  S.flareStep = flareStepOf(sc.trace.steps);
+  S.pastDelivery = false; S.pinned = null; S.hover = null;
+  renderSummary();
+  renderRing();
+  renderLanes();
+  renderLog();
+  $('step-slider').max = String(Math.max(0, sc.trace.steps.length - 1));
+  gotoStep(0);
+}
+function instOf(name) { for (var i = 0; i < S.b.instances.length; i++) if (S.b.instances[i].name === name) return S.b.instances[i]; return null; }
+function renderSummary() {
+  var inst = instOf(S.ef), sc = S.sc, out = $('summary'); clear(out);
+  if (!inst) return;
+  var d = inst.derived, t = inst.target;
+  var parts = [];
+  parts.push(el('b', { text: S.ef + ' · ' + S.res + ' · ' + fmtFlare(S.tFlare) + '. ' }));
+  parts.push(document.createTextNode('Contract: P_Connect = ' + fmtP(t.P_Connect) + ', Expect_Latency = ' + fmtT(t.Expect_Latency) + ' s; link budget: SNR ' + d.snrDb.toFixed(2) + ' dB, pConnect ' + fmtP(d.pConnect) + ', expected hop latency ' + fmtT(d.expectedLatency) + ' s. '));
+  var r = sc.result;
+  parts.push(el('b', { text: r.success ? 'Delivered at TReport = ' + fmtT(r.tReport) + ' via ' + S.path.map(function (n) { return labelOf(S.topo, n); }).join(' → ') + ' (' + (S.path.length - 2) + ' hops).' : 'Not delivered within ' + fmtT(S.b.meta.maxSimTime) + ' time units.' }));
+  parts.forEach(function (p) { out.appendChild(p); });
+}
+
+/* ---- ring ---- */
+var RING = { cx: 300, cy: 300, rEarth: 70, rOrbit: 210, rLabel: 238, rPhase: 182, rSigma: 168, rSun: 280 };
+function polar(angleDeg, r) { var a = angleDeg * Math.PI / 180; return { x: RING.cx + r * Math.cos(a), y: RING.cy + r * Math.sin(a), a: a }; }
+function satAngle(ring) { return -90 + 360 * ring / S.topo.N; }
+function anchorFor(angleDeg, inward) {
+  var c = Math.cos(angleDeg * Math.PI / 180);
+  if (inward) c = -c;
+  return c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle';
+}
+function renderRing() {
+  var host = $('ring-host'); clear(host);
+  var topo = S.topo, N = topo.N;
+  var root = svg('svg', { viewBox: '0 0 600 600', class: 'ring-svg', role: 'img', 'aria-label': 'Ring of ' + N + ' satellites around the Earth with two ground stations' });
+  var paths = {}, nodes = {}, boxes = {};
+  root.appendChild(svg('circle', { class: 'orbit', cx: RING.cx, cy: RING.cy, r: RING.rOrbit }));
+  root.appendChild(svg('circle', { class: 'earth', cx: RING.cx, cy: RING.cy, r: RING.rEarth }));
+  root.appendChild(svg('text', { class: 'caption', x: RING.cx - 30, y: RING.cy + 46, 'text-anchor': 'middle' }, 'Earth'));
+  // positions
+  var pos = {};
+  topo.sats.forEach(function (s) { pos[s.name] = polar(satAngle(s.ring), RING.rOrbit); });
+  var txRing = topo.txSat ? topo.byName[topo.txSat].ring : 0, rxRing = topo.rxSat ? topo.byName[topo.rxSat].ring : 2;
+  pos.Transmitter_GS = polar(satAngle(txRing), RING.rEarth + 8);
+  pos.Receiver_GS = polar(satAngle(rxRing), RING.rEarth + 8);
+  var flareRing = topo.flareSat ? topo.byName[topo.flareSat].ring : 1;
+  var sunPos = polar(satAngle(flareRing), RING.rSun);
+  pos.GenMsg = { x: 62, y: 548 }; pos.TransdFlare = { x: 182, y: 548 };
+  // links
+  var linkLayer = svg('g'); root.appendChild(linkLayer);
+  topo.sats.forEach(function (s) {
+    var a = pos[s.name], bName = topo.sats[(s.ring + 1) % N].name, b = pos[bName];
+    var d = 'M ' + a.x + ' ' + a.y + ' A ' + RING.rOrbit + ' ' + RING.rOrbit + ' 0 0 1 ' + b.x + ' ' + b.y;
+    var p = svg('path', { class: 'link', d: d, id: 'ring-' + s.ring }); paths['ring-' + s.ring] = p; linkLayer.appendChild(p);
+  });
+  if (topo.txSat) { var ptx = svg('path', { class: 'link', d: 'M ' + pos.Transmitter_GS.x + ' ' + pos.Transmitter_GS.y + ' L ' + pos[topo.txSat].x + ' ' + pos[topo.txSat].y }); paths['gnd-tx'] = ptx; linkLayer.appendChild(ptx); }
+  if (topo.rxSat) { var prx = svg('path', { class: 'link', d: 'M ' + pos[topo.rxSat].x + ' ' + pos[topo.rxSat].y + ' L ' + pos.Receiver_GS.x + ' ' + pos.Receiver_GS.y }); paths['gnd-rx'] = prx; linkLayer.appendChild(prx); }
+  var pstart = svg('path', { class: 'link ef', d: 'M ' + pos.GenMsg.x + ' ' + (pos.GenMsg.y - 10) + ' Q 110 300 ' + pos.Transmitter_GS.x + ' ' + pos.Transmitter_GS.y }); paths['ef-start'] = pstart; linkLayer.appendChild(pstart);
+  var preport = svg('path', { class: 'link ef', d: 'M ' + pos.Receiver_GS.x + ' ' + pos.Receiver_GS.y + ' Q 330 470 ' + pos.TransdFlare.x + ' ' + (pos.TransdFlare.y - 10) }); paths['ef-report'] = preport; linkLayer.appendChild(preport);
+  // sun and flare ray
+  var sunG = svg('g'); root.appendChild(sunG);
+  for (var i = 0; i < 8; i++) { var ang = i * Math.PI / 4; sunG.appendChild(svg('line', { class: 'sunray', x1: sunPos.x + 22 * Math.cos(ang), y1: sunPos.y + 22 * Math.sin(ang), x2: sunPos.x + 28 * Math.cos(ang), y2: sunPos.y + 28 * Math.sin(ang) })); }
+  sunG.appendChild(svg('circle', { class: 'sun', cx: sunPos.x, cy: sunPos.y, r: 17 }));
+  sunG.appendChild(svg('text', { class: 'caption', x: sunPos.x, y: sunPos.y - 36, 'text-anchor': 'middle' }, 'GenFlare'));
+  if (topo.flareSat) {
+    var fs = pos[topo.flareSat], dx = fs.x - sunPos.x, dy = fs.y - sunPos.y, L = Math.hypot(dx, dy);
+    var x1 = sunPos.x + dx / L * 20, y1 = sunPos.y + dy / L * 20, x2 = fs.x - dx / L * 20, y2 = fs.y - dy / L * 20;
+    var ray = svg('path', { class: 'flare-ray', d: 'M ' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2, id: 'ef-flare' }); paths['ef-flare'] = ray; root.appendChild(ray);
+  }
+  // EF tray
+  var tray = svg('g'); root.appendChild(tray);
+  tray.appendChild(svg('text', { class: 'caption', x: 20, y: 512 }, 'Experimental frame'));
+  ['GenMsg', 'TransdFlare'].forEach(function (n) {
+    var g = svg('g', { class: 'efbox', 'data-name': n });
+    g.appendChild(svg('rect', { x: pos[n].x - 40, y: pos[n].y - 12, width: 80, height: 24 }));
+    g.appendChild(svg('text', { x: pos[n].x, y: pos[n].y }, n));
+    g.appendChild(svg('text', { class: 'caption', x: pos[n].x, y: pos[n].y + 26, 'text-anchor': 'middle', 'data-role': 'phase' }, ''));
+    tray.appendChild(g); boxes[n] = g;
+  });
+  // nodes
+  var nodeLayer = svg('g'); root.appendChild(nodeLayer);
+  function makeNode(name, r, labelPos, phasePos, sigmaPos, anchors) {
+    var p = pos[name], g = svg('g', { class: 'node cat-passive', 'data-name': name });
+    g.appendChild(svg('circle', { class: 'halo', cx: p.x, cy: p.y, r: r + 8 }));
+    g.appendChild(svg('circle', { class: 'body', cx: p.x, cy: p.y, r: r }));
+    g.appendChild(svg('text', { class: 'glyph', x: p.x, y: p.y }, '×'));
+    g.appendChild(svg('text', { class: 'name', x: labelPos.x, y: labelPos.y, 'text-anchor': anchors[0], 'dominant-baseline': 'middle' }, labelOf(topo, name)));
+    g.appendChild(svg('text', { class: 'phase', x: phasePos.x, y: phasePos.y, 'text-anchor': anchors[1], 'dominant-baseline': 'middle' }, ''));
+    g.appendChild(svg('text', { class: 'sigma', x: sigmaPos.x, y: sigmaPos.y, 'text-anchor': anchors[1], 'dominant-baseline': 'middle' }, ''));
+    var hit = svg('circle', { class: 'hit', cx: p.x, cy: p.y, r: r + 10 });
+    g.appendChild(hit);
+    g.appendChild(svg('title', {}, name));
+    hit.addEventListener('mouseenter', function () { S.hover = name; renderDetail(); g.classList.add('active'); });
+    hit.addEventListener('mouseleave', function () { S.hover = null; renderDetail(); g.classList.remove('active'); });
+    hit.addEventListener('click', function () { S.pinned = S.pinned === name ? null : name; Object.keys(nodes).forEach(function (n) { nodes[n].classList.toggle('pinned', n === S.pinned); }); renderDetail(); });
+    nodeLayer.appendChild(g); nodes[name] = g;
+  }
+  topo.sats.forEach(function (s) {
+    var ang = satAngle(s.ring);
+    makeNode(s.name, 17, polar(ang, RING.rLabel), polar(ang, RING.rPhase), polar(ang, RING.rSigma), [anchorFor(ang, false), anchorFor(ang, true)]);
+  });
+  makeNode('Transmitter_GS', 9, { x: pos.Transmitter_GS.x, y: pos.Transmitter_GS.y + 22 }, { x: pos.Transmitter_GS.x, y: pos.Transmitter_GS.y + 36 }, { x: pos.Transmitter_GS.x, y: pos.Transmitter_GS.y + 49 }, ['middle', 'middle']);
+  makeNode('Receiver_GS', 9, { x: pos.Receiver_GS.x - 14, y: pos.Receiver_GS.y + 20 }, { x: pos.Receiver_GS.x - 14, y: pos.Receiver_GS.y + 34 }, { x: pos.Receiver_GS.x - 14, y: pos.Receiver_GS.y + 47 }, ['end', 'end']);
+  var tokens = svg('g', { id: 'tokens' }); root.appendChild(tokens);
+  host.appendChild(root);
+  S.ring = { root: root, paths: paths, nodes: nodes, boxes: boxes, tokens: tokens, pos: pos };
+}
+function updateRing() {
+  var k = S.k, st = S.states[k + 1] || S.states[0], topo = S.topo, R = S.ring;
+  if (!R) return;
+  Object.keys(R.nodes).forEach(function (name) {
+    var g = R.nodes[name], s = st[name] || {}, cat = categoryOf(topo, name, s.phase);
+    g.setAttribute('class', 'node cat-' + cat + (LINKED[s.phase] ? ' linked' : '') + (name === topo.flareSat && S.flareStep >= 0 && k >= S.flareStep ? ' flared' : '') + (S.pinned === name ? ' pinned' : ''));
+    g.querySelector('.phase').textContent = s.phase || '';
+    g.querySelector('.sigma').textContent = 'σ ' + fmtT(isPassive(s.sigma) ? null : s.sigma);
+  });
+  Object.keys(R.boxes).forEach(function (name) {
+    var s = st[name] || {}, cat = categoryOf(topo, name, s.phase);
+    R.boxes[name].setAttribute('class', 'efbox cat-' + cat);
+    R.boxes[name].querySelector('[data-role=phase]').textContent = s.phase || '';
+  });
+  // link states from hops
+  Object.keys(R.paths).forEach(function (id) { R.paths[id].setAttribute('class', 'link' + (id.indexOf('ef-') === 0 ? ' ef' : '')); });
+  S.hops.forEach(function (h) {
+    var link = linkFor(h.from, h.to, topo); if (!link || !R.paths[link.id]) return;
+    var p = R.paths[link.id], cls = 'link';
+    var isLast = h.to === 'Receiver_GS';
+    if (h.kAck !== null && k >= h.kAck) cls += ' used';
+    else if (isLast && k >= h.kHs) cls += ' used';
+    else if (h.kAck === null && !isLast && k > h.kHs) cls += ' dead';
+    else if (k >= h.kHs) cls += ' pending';
+    if (cls !== 'link') p.setAttribute('class', cls);
+  });
+  var ray = R.paths['ef-flare'];
+  if (ray) ray.setAttribute('class', 'flare-ray' + (S.flareStep >= 0 && k === S.flareStep ? ' on' : ''));
+  renderDetail();
+  startTokens(k);
+}
+function tokenEl(kind) {
+  var g = svg('g', { class: 'token kind-' + kind });
+  if (kind === 'data') g.appendChild(svg('rect', { x: -6, y: -6, width: 12, height: 12, rx: 1.5 }));
+  else if (kind === 'start' || kind === 'report') g.appendChild(svg('rect', { x: -6, y: -6, width: 12, height: 12, transform: 'rotate(45)' }));
+  else g.appendChild(svg('circle', { r: kind === 'flare' ? 5 : 6.5 }));
+  return g;
+}
+function pulse(g) { if (!g) return; g.classList.add('pulse'); setTimeout(function () { g.classList.remove('pulse'); }, 600); }
+function startTokens(k) {
+  var R = S.ring; if (!R) return;
+  clear(R.tokens);
+  if (S.anim) { cancelAnimationFrame(S.anim); S.anim = null; }
+  var step = S.sc.trace.steps[k]; if (!step) return;
+  var toks = [];
+  step.msgs.forEach(function (m, i) {
+    var link = linkFor(m.from, m.to, S.topo), kind = kindOf(m, step);
+    if (!link) { if (m.to === 'TransdFlare') pulse(R.boxes.TransdFlare); return; }
+    var pathEl = R.paths[link.id]; if (!pathEl) return;
+    var g = tokenEl(kind); R.tokens.appendChild(g);
+    toks.push({ g: g, pathEl: pathEl, fwd: link.fwd, len: pathEl.getTotalLength(), delay: i * 60 });
+  });
+  if (!toks.length) return;
+  var dur = S.reduced ? 0 : Math.min(0.8 * S.speedMs, 600), t0 = performance.now();
+  function frame(now) {
+    var busy = false;
+    toks.forEach(function (t) {
+      var u = dur === 0 ? 1 : Math.min(1, Math.max(0, (now - t0 - t.delay) / dur));
+      if (u < 1) busy = true;
+      var p = t.pathEl.getPointAtLength((t.fwd ? u : 1 - u) * t.len);
+      t.g.setAttribute('transform', 'translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')');
+    });
+    S.anim = busy ? requestAnimationFrame(frame) : null;
+  }
+  S.anim = requestAnimationFrame(frame);
+}
+function renderDetail() {
+  var host = $('detail'); clear(host);
+  var name = S.pinned || S.hover;
+  if (!name || !S.sc) { host.appendChild(el('span', { class: 'muted', text: 'Hover or click a satellite or ground station for its state and link budget.' })); return; }
+  var st = (S.states[S.k + 1] || S.states[0])[name] || {}, info = S.topo.byName[name], t = S.sc.trace.steps[S.k] ? S.sc.trace.steps[S.k].t : 0;
+  var cat = categoryOf(S.topo, name, st.phase);
+  var title = el('div', { class: 'title' }, [labelOf(S.topo, name) + ' (' + info.cls + ') ', el('span', { class: 'pill cat-' + cat, text: cat })]);
+  host.appendChild(title);
+  var dl = el('dl', { class: 'kv' });
+  function row(kk, v) { dl.appendChild(el('dt', { text: kk })); dl.appendChild(el('dd', { text: v })); }
+  row('phase', st.phase || '');
+  row('σ', isPassive(st.sigma) ? '∞ (passive)' : fmtT(st.sigma));
+  row('next event', isPassive(st.sigma) ? 'none scheduled' : 't = ' + fmtT(t + st.sigma));
+  if (info.cls === 'CellSAT') {
+    row('SNR', st.snrDb != null ? st.snrDb.toFixed(2) + ' dB' : '');
+    row('pConnect', fmtP(st.pConnect));
+    row('expected latency', fmtT(st.expectedLatency) + ' s');
+    row('environment loss', fmtV(st.environmentLoss) + ' dB');
+    row('link usable', st.usable ? 'yes' : 'no (below floor)');
+    row('preferred receiver', String(st.preferredReceiver));
+  } else if (info.cls === 'SatCTM') {
+    row('P_Connect', fmtP(st.pConnect));
+    row('Expect_Latency', fmtT(st.expectLatency) + ' s');
+    row('drawn next state', st.nextState || '');
+    row('preferred receiver', String(st.preferredReceiver));
+  }
+  host.appendChild(dl);
+}
+
+/* ---- replay ---- */
+function gotoStep(k) {
+  var K = S.sc ? S.sc.trace.steps.length : 0;
+  if (!K) return;
+  k = Math.max(0, Math.min(K - 1, k));
+  S.k = k;
+  $('step-slider').value = String(k);
+  updateRing();
+  updateLaneCursors();
+  updateLog();
+  updateReadout();
+}
+function updateReadout() {
+  var steps = S.sc.trace.steps, k = S.k, t = steps[k].t, prev = k > 0 ? steps[k - 1].t : 0;
+  $('ro-t').textContent = fmtT(t);
+  $('ro-dt').textContent = (k === 0 ? '' : '+') + fmtT(t - prev);
+  $('ro-k').textContent = String(k + 1);
+  $('ro-K').textContent = String(steps.length);
+  var r = S.sc.result, res = $('ro-result');
+  res.textContent = r.success ? (k >= S.deliveryStep ? 'delivered, TReport = ' + fmtT(r.tReport) : 'in transit') : 'no delivery';
+  var desc = $('stepdesc'); clear(desc);
+  describeStep(S.sc, S.states, k, S.topo).forEach(function (line) { desc.appendChild(el('div', { text: line })); });
+  if (k === S.deliveryStep) desc.appendChild(el('div', { class: 'note', text: 'Report delivered: TReport = ' + fmtT(r.tReport) + '. The remaining steps are the tail (X0Y2 waiting out its handshake timeout).' }));
+  if (k === S.flareStep) desc.appendChild(el('div', { class: 'note', style: 'color:var(--flare)', text: 'Solar flare incident on ' + labelOf(S.topo, S.topo.flareSat) + '.' }));
+}
+function play() {
+  if (!S.sc) return;
+  if (S.k >= S.sc.trace.steps.length - 1) { gotoStep(0); S.pastDelivery = false; }
+  S.playing = true; $('btn-play').textContent = '❚❚ Pause'; $('btn-play').setAttribute('aria-pressed', 'true');
+  tick();
+}
+function pause() {
+  S.playing = false; if (S.timer) { clearTimeout(S.timer); S.timer = null; }
+  $('btn-play').textContent = '▶ Play'; $('btn-play').setAttribute('aria-pressed', 'false');
+}
+function tick() {
+  if (!S.playing) return;
+  var K = S.sc.trace.steps.length;
+  if (S.k >= K - 1) { pause(); return; }
+  if (S.stopAtDelivery && S.deliveryStep != null && S.k === S.deliveryStep && !S.pastDelivery) { S.pastDelivery = true; pause(); return; }
+  gotoStep(S.k + 1);
+  S.timer = setTimeout(tick, S.speedMs);
+}
+
+/* ---- event log ---- */
+function renderLog() {
+  var host = $('log'); clear(host);
+  var topo = S.topo;
+  S.sc.trace.steps.forEach(function (step, k) {
+    var models = []; step.events.forEach(function (e) { var l = labelOf(topo, e.model); if (models.indexOf(l) < 0) models.push(l); });
+    var msgs = step.msgs.map(function (m) { return labelOf(topo, m.from) + '→' + labelOf(topo, m.to); }).join(', ');
+    var row = el('button', { type: 'button', class: 'logrow' + (k === S.deliveryStep ? ' delivery' : '') + (k === S.flareStep ? ' flare' : '') }, [
+      el('span', { class: 'k', text: String(k + 1) }), el('span', { class: 't', text: fmtT(step.t) }),
+      el('span', { class: 'what', text: models.join(', ') + (msgs ? '  ·  ' + msgs : '') })]);
+    row.addEventListener('click', function () { pause(); gotoStep(k); });
+    host.appendChild(row);
+  });
+}
+function updateLog() {
+  var rows = $('log').children;
+  for (var i = 0; i < rows.length; i++) rows[i].classList.toggle('current', i === S.k);
+  var cur = rows[S.k];
+  if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+}
+
+/* ---- lanes ---- */
+var LANE = { W: 960, x0: 112, rowH: 18, axisH: 36, pad: 8 };
+function renderLanes() {
+  var host = $('lanes-host'); clear(host); S.lanes = {};
+  Object.keys(S.b.topology).forEach(function (res) {
+    var sc = S.index[scenarioKey(S.ef, res, S.tFlare)];
+    var title = el('div', { class: 'lane-title' + (res === S.res ? ' active' : '') }, [el('b', { text: res }), el('span', { class: 'muted', text: sc ? (sc.result.success ? 'TReport = ' + fmtT(sc.result.tReport) : 'no delivery') + ' · ' + sc.trace.steps.length + ' steps' : 'not in bundle' })]);
+    host.appendChild(title);
+    if (!sc) return;
+    var wrap = el('div', { class: 'lanes-wrap' });
+    host.appendChild(wrap);
+    S.lanes[res] = renderLane(res, sc, wrap);
+  });
+  updateLaneCursors();
+}
+function renderLane(res, sc, wrap) {
+  var topo = buildTopo(S.b.topology[res]), states = materialize(sc.trace), steps = sc.trace.steps, K = steps.length;
+  var pt = pathTaken(steps), flareStep = flareStepOf(steps);
+  var rows = ['Transmitter_GS'].concat(topo.sats.map(function (s) { return s.name; })).concat(['Receiver_GS', 'EF']);
+  var rowIndex = {}; rows.forEach(function (n, i) { rowIndex[n] = i; });
+  ['GenMsg', 'GenFlare', 'TransdFlare'].forEach(function (n) { rowIndex[n] = rowIndex.EF; });
+  var H = rows.length * LANE.rowH + LANE.axisH + LANE.pad, w = (LANE.W - LANE.x0 - 12) / (K + 1);
+  var x = function (c) { return LANE.x0 + c * w; }, y = function (r) { return LANE.pad / 2 + r * LANE.rowH; }, yc = function (r) { return y(r) + LANE.rowH / 2; };
+  var tCol = function (c) { return c === 0 ? 0 : steps[c - 1].t; };
+  var RANK = { passive: 0, waiting: 1, connecting: 2, sending: 3, failed: 3 };
+  function phaseAt(name, c) {
+    if (name === 'EF') {
+      var best = 'passive';
+      ['GenMsg', 'GenFlare', 'TransdFlare'].forEach(function (n) {
+        var st = states[c][n]; if (!st || isPassive(st.sigma)) return;
+        var cat = categoryOf(topo, n, st.phase); if (RANK[cat] > RANK[best]) best = cat;
+      });
+      return best;
+    }
+    return states[c][name] ? states[c][name].phase : '';
+  }
+  function catAt(name, c) { var p = phaseAt(name, c); return name === 'EF' ? p : categoryOf(topo, name, p); }
+  var root = svg('svg', { viewBox: '0 0 ' + LANE.W + ' ' + H, class: 'lane-svg', role: 'img', 'aria-label': res + ' phase lanes' });
+  rows.forEach(function (name, r) {
+    root.appendChild(svg('text', { class: 'rowlabel', x: LANE.x0 - 8, y: yc(r), 'text-anchor': 'end', 'dominant-baseline': 'middle' }, name === 'EF' ? 'EFFlare' : labelOf(topo, name)));
+    var c0 = 0;
+    for (var c = 1; c <= K + 1; c++) {
+      if (c === K + 1 || phaseAt(name, c) !== phaseAt(name, c0)) {
+        var width = (c - c0) * w - 1, cat = catAt(name, c0);
+        var rect = svg('rect', { class: 'seg cat-' + cat, x: x(c0), y: y(r) + 2, width: Math.max(1, width), height: LANE.rowH - 4, rx: 2 });
+        var ph = phaseAt(name, c0);
+        rect.appendChild(svg('title', {}, (name === 'EF' ? 'EFFlare' : labelOf(topo, name)) + ': ' + ph + ' from t = ' + fmtT(tCol(c0)) + ' (steps ' + c0 + '–' + (c - 1) + ')'));
+        root.appendChild(rect);
+        if (width >= 48 && name !== 'EF') root.appendChild(svg('text', { class: 'seglabel' + (cat === 'passive' ? ' dark' : ''), x: x(c0) + 4, y: yc(r), 'dominant-baseline': 'middle' }, ph));
+        c0 = c;
+      }
+    }
+  });
+  // arrows
+  var defs = svg('defs'); root.appendChild(defs);
+  ['hs', 'ack', 'data', 'start', 'report', 'flare'].forEach(function (kind) {
+    var mk = svg('marker', { id: 'arrow-' + res + '-' + kind, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+    var path = svg('path', { d: 'M 0 0 L 8 4 L 0 8 z', class: 'arrow kind-' + kind });
+    path.setAttribute('style', 'fill: currentColor; stroke: none');
+    mk.appendChild(path); defs.appendChild(mk);
+  });
+  steps.forEach(function (step, k) {
+    var n = step.msgs.length;
+    step.msgs.forEach(function (m, i) {
+      var rf = rowIndex[m.from], rt = rowIndex[m.to]; if (rf == null || rt == null || rf === rt) return;
+      var kind = kindOf(m, step), xx = x(k + 1) + (i - (n - 1) / 2) * 3;
+      var dir = rt > rf ? 1 : -1;
+      var line = svg('line', { class: 'arrow kind-' + kind, x1: xx, y1: yc(rf) + dir * 6, x2: xx, y2: yc(rt) - dir * 7, 'marker-end': 'url(#arrow-' + res + '-' + kind + ')' });
+      line.setAttribute('style', 'color: ' + ({ hs: 'var(--s1)', ack: 'var(--s1)', data: 'var(--s3)', start: 'var(--s7)', report: 'var(--s7)', flare: 'var(--flare)' })[kind]);
+      line.appendChild(svg('title', {}, 'step ' + (k + 1) + ' · ' + kind + ': ' + labelOf(topo, m.from) + '.' + m.port + ' → ' + labelOf(topo, m.to) + '.' + m.toPort));
+      root.appendChild(line);
+    });
+  });
+  // axis
+  var axisY = y(rows.length) + 4;
+  root.appendChild(svg('line', { class: 'tick', x1: LANE.x0, y1: axisY, x2: x(K + 1), y2: axisY }));
+  var labelCols = [0]; for (var c = 1; c <= K; c++) if (tCol(c) !== tCol(c - 1)) labelCols.push(c);
+  var keep = {}; keep[0] = true; keep[K] = true; if (flareStep >= 0) keep[flareStep + 1] = true; if (pt.deliveryStep != null) keep[pt.deliveryStep + 1] = true;
+  var every = Math.max(1, Math.ceil(labelCols.length / 10)), lastX = -Infinity;
+  labelCols.forEach(function (c, i) {
+    if (!(keep[c] || i % every === 0)) return;
+    if (x(c) - lastX < 34 && !keep[c]) return;
+    lastX = x(c);
+    root.appendChild(svg('line', { class: 'tick', x1: x(c), y1: axisY, x2: x(c), y2: axisY + 4 }));
+    root.appendChild(svg('text', { class: 'ticklabel', x: x(c), y: axisY + 15, 'text-anchor': 'middle' }, fmtT(tCol(c))));
+  });
+  root.appendChild(svg('text', { class: 'ticklabel', x: LANE.x0 - 8, y: axisY + 15, 'text-anchor': 'end' }, 't'));
+  if (flareStep >= 0) {
+    root.appendChild(svg('line', { class: 'mark-flare', x1: x(flareStep + 1), y1: y(0), x2: x(flareStep + 1), y2: axisY }));
+    root.appendChild(svg('text', { class: 'marklabel', x: x(flareStep + 1) + 3, y: axisY + 28 }, 'flare'));
+  }
+  if (pt.deliveryStep != null) {
+    root.appendChild(svg('line', { class: 'mark-delivery', x1: x(pt.deliveryStep + 1), y1: y(0), x2: x(pt.deliveryStep + 1), y2: axisY }));
+    root.appendChild(svg('text', { class: 'marklabel', x: x(pt.deliveryStep + 1) + 3, y: axisY + 28 }, 'TReport = ' + fmtT(sc.result.tReport)));
+  }
+  // column hit areas
+  for (var cc = 0; cc <= K; cc++) {
+    (function (col) {
+      var hit = svg('rect', { class: 'colhit', x: x(col), y: y(0), width: w, height: y(rows.length) - y(0) });
+      hit.addEventListener('click', function () { pause(); if (res !== S.res) { S.res = res; refreshSeg(); selectScenario(); } gotoStep(Math.max(0, col - 1)); });
+      hit.addEventListener('mousemove', function (ev) { showTip(ev, laneTip(col, ev)); });
+      hit.addEventListener('mouseleave', hideTip);
+      root.appendChild(hit);
+    })(cc);
+  }
+  function laneTip(col, ev) {
+    var rect = root.getBoundingClientRect(), scale = H / rect.height, py = (ev.clientY - rect.top) * scale;
+    var r = Math.min(rows.length - 1, Math.max(0, Math.floor((py - LANE.pad / 2) / LANE.rowH))), name = rows[r];
+    var st = name === 'EF' ? null : states[col][name];
+    return [(name === 'EF' ? 'EFFlare' : labelOf(topo, name)) + ' · ' + res, 'step ' + col + (col === 0 ? ' (initial)' : '') + ', t = ' + fmtT(tCol(col)),
+      st ? 'phase ' + st.phase + ', σ ' + (isPassive(st.sigma) ? '∞' : fmtT(st.sigma)) : 'phase ' + phaseAt(name, col)];
+  }
+  var cursor = svg('line', { class: 'cursor' + (res === S.res ? '' : ' ghost'), x1: x(0), y1: y(0) - 2, x2: x(0), y2: axisY });
+  root.appendChild(cursor);
+  wrap.appendChild(root);
+  return { root: root, cursor: cursor, x: x, K: K, tCol: tCol };
+}
+function updateLaneCursors() {
+  if (!S.sc) return;
+  var tk = S.sc.trace.steps[S.k] ? S.sc.trace.steps[S.k].t : 0;
+  Object.keys(S.lanes).forEach(function (res) {
+    var L = S.lanes[res], col;
+    if (res === S.res) col = S.k + 1;
+    else { col = 0; for (var c = 0; c <= L.K; c++) if (L.tCol(c) <= tk + 1e-12) col = c; }
+    L.cursor.setAttribute('x1', L.x(col)); L.cursor.setAttribute('x2', L.x(col));
+  });
+}
+
+/* ---- tooltip ---- */
+function showTip(ev, lines) {
+  var tip = $('tip'); clear(tip);
+  lines.forEach(function (l, i) { tip.appendChild(el('div', { text: l, class: i === 0 ? '' : 'k' })); });
+  tip.hidden = false;
+  var x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + 300 > window.innerWidth) x = ev.clientX - 300;
+  if (y + 90 > window.innerHeight) y = ev.clientY - 90;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { $('tip').hidden = true; }
+
+/* ---- statistics ---- */
+function renderStats() {
+  if (!S.b) return;
+  var m = S.b.meta;
+  $('stats-sub').textContent = 'TReport over ' + m.reps + ' seeded replications per scenario (seed ' + m.seed + '). δT = |mean Markov − Base| / Base over successful runs, δP = |P(success) Markov − Base|: the behavioral-distance point estimates of the repository, without confidence bounds.';
+  renderStrip();
+  renderMultis();
+  if (!S.legacyDone) { renderLegacy(); S.legacyDone = true; }
+}
+function statsFor(ef, res, tf) { var sc = S.index[scenarioKey(ef, res, tf)]; return sc ? sc.stats : null; }
+function renderStrip() {
+  var host = $('strip-host'); clear(host);
+  var flares = S.b.meta.flareTimes || [null], resolutions = Object.keys(S.b.topology);
+  var base = resolutions[0], lumped = resolutions[1] || resolutions[0];
+  var vals = [];
+  flares.forEach(function (tf) { resolutions.forEach(function (r) { var s = statsFor(S.ef, r, tf); if (s) vals = vals.concat(s.tReport); }); });
+  var dom = logDomain(vals), W = 960, left = 150, right = 690, rowH = 62, H = flares.length * rowH + 40;
+  var X = scaleLog(dom, [left, right]);
+  var root = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart-svg', role: 'img', 'aria-label': 'Delivery time of ' + S.ef + ' at both resolutions' });
+  ticksLog(dom[0], dom[1]).forEach(function (t) {
+    root.appendChild(svg('line', { class: 'grid', x1: X(t), y1: 10, x2: X(t), y2: H - 30 }));
+    root.appendChild(svg('text', { class: 'ticklabel', x: X(t), y: H - 16, 'text-anchor': 'middle' }, fmtTick(t)));
+  });
+  root.appendChild(svg('text', { class: 'ticklabel', x: right, y: H - 4, 'text-anchor': 'end' }, 'TReport (simulation time units, log scale)'));
+  flares.forEach(function (tf, i) {
+    var yc = 22 + i * rowH + rowH / 2, b = statsFor(S.ef, base, tf), l = statsFor(S.ef, lumped, tf);
+    root.appendChild(svg('text', { class: 'rowlabel', x: 10, y: yc, 'dominant-baseline': 'middle' }, fmtFlare(tf)));
+    root.appendChild(svg('line', { class: 'axis', x1: left, y1: yc + 16, x2: right, y2: yc + 16 }));
+    if (l) {
+      if (l.successes) {
+        var sorted = l.tReport, q1 = quantile(sorted, 0.25), q2 = quantile(sorted, 0.5), q3 = quantile(sorted, 0.75), mn = sorted[0], mx = sorted[sorted.length - 1];
+        sorted.forEach(function (v, j) {
+          var jit = ((j * 7919) % 11 - 5) * 1.6, d = svg('circle', { class: 'dot', cx: X(v), cy: yc + jit, r: 3 });
+          d.appendChild(svg('title', {}, lumped + ' replication: TReport = ' + fmtT(v))); root.appendChild(d);
+        });
+        root.appendChild(svg('line', { class: 'whisker', x1: X(mn), y1: yc, x2: X(q1), y2: yc }));
+        root.appendChild(svg('line', { class: 'whisker', x1: X(q3), y1: yc, x2: X(mx), y2: yc }));
+        var box = svg('rect', { class: 'box', x: X(q1), y: yc - 11, width: Math.max(1, X(q3) - X(q1)), height: 22, rx: 2 });
+        box.appendChild(svg('title', {}, lumped + ' quartiles: ' + fmtT(q1) + ' / ' + fmtT(q2) + ' / ' + fmtT(q3))); root.appendChild(box);
+        root.appendChild(svg('line', { class: 'box', x1: X(q2), y1: yc - 11, x2: X(q2), y2: yc + 11 }));
+        var mc = svg('circle', { class: 'mean', cx: X(l.mean), cy: yc, r: 5 }); mc.appendChild(svg('title', {}, lumped + ' mean ' + fmtT(l.mean))); root.appendChild(mc);
+      } else root.appendChild(svg('text', { class: 'never', x: left + 6, y: yc - 14 }, lumped + ' never delivers'));
+    }
+    if (b) {
+      if (b.successes) {
+        var bx = X(b.mean), dm = svg('rect', { class: 'base', x: bx - 6, y: yc - 6, width: 12, height: 12, transform: 'rotate(45 ' + bx + ' ' + yc + ')' });
+        dm.appendChild(svg('title', {}, base + ': TReport = ' + fmtT(b.mean))); root.appendChild(dm);
+        root.appendChild(svg('text', { class: 'endlabel', x: bx, y: yc - 17, 'text-anchor': 'middle' }, base + ' ' + fmtT(b.mean)));
+      } else root.appendChild(svg('text', { class: 'never', x: left + 6, y: yc + 20 }, base + ' never delivers'));
+    }
+    if (b && l) {
+      var ds = deltaStats(b, l), tx = right + 24;
+      root.appendChild(svg('text', { class: 'statlbl', x: tx, y: yc - 14 }, 'P(success) ' + base + ' ' + b.successes + '/' + b.n + ' · ' + lumped + ' ' + l.successes + '/' + l.n));
+      root.appendChild(svg('text', { class: 'stat', x: tx, y: yc + 4 }, 'δT = ' + fmtV(ds.dT) + '   δP = ' + fmtV(ds.dP)));
+      root.appendChild(svg('text', { class: 'statlbl', x: tx, y: yc + 20 }, 'mean ' + base + ' ' + fmtT(ds.mB) + ' · ' + lumped + ' ' + fmtT(ds.mL)));
+    }
+  });
+  host.appendChild(root);
+}
+function renderMultis() {
+  var host = $('multi-host'); clear(host);
+  var flares = S.b.meta.flareTimes || [null], resolutions = Object.keys(S.b.topology), base = resolutions[0], lumped = resolutions[1] || resolutions[0];
+  var vals = []; S.b.scenarios.forEach(function (sc) { vals = vals.concat(sc.stats.tReport); });
+  var dom = logDomain(vals), W = 300, left = 8, right = 200, H = 20 + flares.length * 26;
+  var X = scaleLog(dom, [left, right]);
+  S.b.instances.forEach(function (inst) {
+    var cell = el('div', { class: 'multi' + (inst.name === S.ef ? ' selected' : ''), role: 'button', tabindex: '0', 'aria-label': 'Select ' + inst.name });
+    var root = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart-svg' });
+    root.appendChild(svg('text', { class: 'title', x: left, y: 13 }, inst.name));
+    ticksLog(dom[0], dom[1]).forEach(function (t) { root.appendChild(svg('line', { class: 'grid', x1: X(t), y1: 18, x2: X(t), y2: H - 4 })); });
+    flares.forEach(function (tf, i) {
+      var yc = 32 + i * 26, b = statsFor(inst.name, base, tf), l = statsFor(inst.name, lumped, tf);
+      root.appendChild(svg('text', { class: 'ticklabel', x: right + 6, y: yc + 3 }, tf == null ? 'none' : 'flare'));
+      if (l && l.successes) {
+        var sorted = l.tReport;
+        root.appendChild(svg('line', { class: 'range', x1: X(sorted[0]), y1: yc, x2: X(sorted[sorted.length - 1]), y2: yc }));
+        root.appendChild(svg('circle', { class: 'median', cx: X(quantile(sorted, 0.5)), cy: yc, r: 4 }));
+      } else root.appendChild(svg('text', { class: 'never', x: left + 2, y: yc - 6 }, lumped + ' never'));
+      if (b && b.successes) {
+        var bx = X(b.mean);
+        root.appendChild(svg('rect', { class: 'base', x: bx - 5, y: yc - 5, width: 10, height: 10, transform: 'rotate(45 ' + bx + ' ' + yc + ')' }));
+      } else root.appendChild(svg('text', { class: 'never', x: left + 2, y: yc + 12 }, base + ' never'));
+      if (b && l && tf != null) { var ds = deltaStats(b, l); root.appendChild(svg('text', { class: 'ticklabel', x: right + 6, y: yc + 14 }, 'δT ' + fmtV(ds.dT) + ' δP ' + fmtV(ds.dP))); }
+    });
+    cell.appendChild(root);
+    var pick = function () { S.ef = inst.name; $('ef').value = inst.name; selectScenario(); renderStats(); renderMorphism(); };
+    cell.addEventListener('click', pick);
+    cell.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    host.appendChild(cell);
+  });
+}
+function renderLegacy() {
+  var host = $('legacy-host'); clear(host);
+  var lg = S.b.legacy && S.b.legacy.timeVsCost;
+  if (!lg || !lg.flare || !lg.flare.length) { host.appendChild(el('p', { class: 'muted', text: 'Not in this bundle.' })); return; }
+  var series = [{ key: 'noFlare', label: 'No flare', cls: 's1', rows: lg.noFlare || [] }, { key: 'flare', label: 'TFlare = 1', cls: 's2', rows: lg.flare }];
+  var W = 960, H = 280, left = 60, right = 860, top = 24, bottom = 236;
+  var ymax = 0; series.forEach(function (s) { s.rows.forEach(function (r) { if (r.avg > ymax) ymax = r.avg; }); });
+  ymax = Math.ceil(ymax / 10) * 10 || 10;
+  var X = function (c) { return left + (c - 1) / 9 * (right - left); }, Y = function (v) { return bottom - v / ymax * (bottom - top); };
+  var root = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart-svg', role: 'img', 'aria-label': 'Average delivery time versus cost, flare and no flare' });
+  for (var v = 0; v <= ymax; v += ymax / 5) {
+    root.appendChild(svg('line', { class: 'grid', x1: left, y1: Y(v), x2: right, y2: Y(v) }));
+    root.appendChild(svg('text', { class: 'ticklabel', x: left - 8, y: Y(v) + 3, 'text-anchor': 'end' }, String(Math.round(v))));
+  }
+  root.appendChild(svg('line', { class: 'axis', x1: left, y1: bottom, x2: right, y2: bottom }));
+  for (var c = 1; c <= 10; c++) root.appendChild(svg('text', { class: 'ticklabel', x: X(c), y: bottom + 16, 'text-anchor': 'middle' }, String(c)));
+  root.appendChild(svg('text', { class: 'ticklabel', x: (left + right) / 2, y: bottom + 32, 'text-anchor': 'middle' }, 'Cost (MeanLatency = 10 / Cost)'));
+  root.appendChild(svg('text', { class: 'ticklabel', x: 12, y: top - 8 }, 'Average TReport'));
+  var legend = el('div', { class: 'legend' });
+  series.forEach(function (s) {
+    if (!s.rows.length) return;
+    var d = s.rows.map(function (r, i) { return (i ? 'L ' : 'M ') + X(r.cost) + ' ' + Y(r.avg); }).join(' ');
+    root.appendChild(svg('path', { class: 'line ' + s.cls, d: d }));
+    s.rows.forEach(function (r) { var p = svg('circle', { class: 'pt ' + s.cls, cx: X(r.cost), cy: Y(r.avg), r: 4 }); p.appendChild(svg('title', {}, s.label + ' · cost ' + r.cost + ': mean ' + r.avg.toFixed(2) + ', std ' + r.std.toFixed(2))); root.appendChild(p); });
+    var last = s.rows[s.rows.length - 1];
+    root.appendChild(svg('text', { class: 'endlabel', x: X(last.cost) + 10, y: Y(last.avg) + 4 }, s.label));
+    var i = el('i', { class: 'line' }); i.style.background = 'var(--' + s.cls + ')';
+    legend.appendChild(el('span', {}, [i, s.label]));
+  });
+  var cross = svg('line', { class: 'crosshair', x1: left, y1: top, x2: left, y2: bottom }); root.appendChild(cross);
+  var hit = svg('rect', { class: 'hit', x: left, y: top, width: right - left, height: bottom - top }); root.appendChild(hit);
+  hit.addEventListener('mousemove', function (ev) {
+    var rect = root.getBoundingClientRect(), px = (ev.clientX - rect.left) * W / rect.width;
+    var cost = Math.max(1, Math.min(10, Math.round(1 + (px - left) / (right - left) * 9)));
+    cross.setAttribute('x1', X(cost)); cross.setAttribute('x2', X(cost)); cross.style.opacity = 1;
+    var lines = ['Cost ' + cost];
+    series.forEach(function (s) { var r = s.rows.filter(function (q) { return q.cost === cost; })[0]; if (r) lines.push(s.label + ': ' + r.avg.toFixed(2) + ' ± ' + r.std.toFixed(2)); });
+    showTip(ev, lines);
+  });
+  hit.addEventListener('mouseleave', function () { cross.style.opacity = 0; hideTip(); });
+  host.appendChild(legend);
+  host.appendChild(root);
+}
+
+/* ---- morphism ---- */
+function renderMorphism() {
+  var inst = instOf(S.ef); if (!inst) return;
+  var meta = S.b.meta, d = inst.derived, f = inst.derivedFlare, t = inst.target;
+  var baseHost = $('morph-base'); clear(baseHost);
+  var tbl = el('table'), tb = el('tbody');
+  tbl.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: 'CellSAT parameter' }), el('th', { class: 'num', text: 'value' }), el('th', { text: 'unit' })])]));
+  Object.keys(inst.base).forEach(function (k) { tb.appendChild(el('tr', {}, [el('td', { text: k }), el('td', { class: 'num', text: fmtV(inst.base[k]) }), el('td', { class: 'muted', text: UNITS[k] || '' })])); });
+  tbl.appendChild(tb);
+  baseHost.appendChild(el('h3', { text: 'Base parameters, ' + inst.name }));
+  baseHost.appendChild(el('div', { class: 'tablewrap' }, [tbl]));
+  var bHost = $('morph-budget'); clear(bHost);
+  var t2 = el('table'), tb2 = el('tbody');
+  t2.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: 'link budget' }), el('th', { class: 'num', text: 'derived' }), el('th', { class: 'num', text: 'with flare +' + meta.flareLossDb + ' dB' }), el('th', { class: 'num', text: 'JSON target (SatCTM)' }), el('th', { class: 'num', text: 'rel. diff' })])]));
+  function r2(label, a, b, target, fmt) {
+    var cells = [el('td', { text: label }), el('td', { class: 'num', text: fmt(a) }), el('td', { class: 'num', text: fmt(b) })];
+    if (target !== undefined) {
+      var rel = (isFinite(a) && isFinite(target) && target !== 0) ? Math.abs(a - target) / Math.abs(target) : null;
+      var flag = rel == null ? (a === 0 || !isFinite(a) ? 'underflow' : '') : (rel > 1e-3 ? fmtV(rel) : fmtV(rel));
+      cells.push(el('td', { class: 'num', text: fmt(target) }));
+      cells.push(el('td', { class: 'num' + (rel != null && rel > 1e-3 || rel == null ? ' flag' : ''), text: flag }));
+    } else { cells.push(el('td', { class: 'num muted', text: '–' })); cells.push(el('td', { text: '' })); }
+    tb2.appendChild(el('tr', {}, cells));
+  }
+  r2('SNR (dB)', d.snrDb, f.snrDb, undefined, function (v) { return isFinite(v) ? v.toFixed(2) : '∞'; });
+  r2('bit error rate', d.ber, f.ber, undefined, function (v) { return v === 0 ? '0' : v.toExponential(3); });
+  r2('pConnect', d.pConnect, f.pConnect, t.P_Connect, fmtP);
+  r2('packet time (s)', d.packetTime, f.packetTime, undefined, fmtT);
+  r2('expected latency (s)', d.expectedLatency, f.expectedLatency, t.Expect_Latency, fmtT);
+  var factor = (d.usable && f.usable) ? f.expectedLatency / d.expectedLatency : null;
+  tb2.appendChild(el('tr', {}, [el('td', { text: 'flare factor on hop time' }), el('td', { class: 'num', text: '1' }), el('td', { class: 'num' + (factor == null && d.usable ? ' flag' : ''), text: factor == null ? (d.usable ? 'outage' : '–') : '×' + fmtV(factor) }), el('td', { class: 'num', text: '×' + meta.latencyDegradationFactor }), el('td', { class: 'muted', text: 'Markov always ×' + meta.latencyDegradationFactor })]));
+  t2.appendChild(tb2);
+  bHost.appendChild(el('h3', { text: 'Link budget → lumped parameters' }));
+  bHost.appendChild(el('div', { class: 'tablewrap' }, [t2]));
+  $('morph-sentence').textContent = flareSentence(inst, meta);
+}
+
+/* ---- boot ---- */
+function boot() {
+  $('ef').addEventListener('change', function (e) { S.ef = e.target.value; selectScenario(); renderStats(); renderMorphism(); });
+  $('btn-play').addEventListener('click', function () { if (S.playing) pause(); else play(); });
+  $('btn-first').addEventListener('click', function () { pause(); gotoStep(0); });
+  $('btn-last').addEventListener('click', function () { pause(); gotoStep(1e9); });
+  $('btn-prev').addEventListener('click', function () { pause(); gotoStep(S.k - 1); });
+  $('btn-next').addEventListener('click', function () { pause(); gotoStep(S.k + 1); });
+  $('step-slider').addEventListener('input', function (e) { pause(); gotoStep(Number(e.target.value)); });
+  $('speed').addEventListener('change', function (e) { S.speedMs = Number(e.target.value); });
+  $('stop-delivery').addEventListener('change', function (e) { S.stopAtDelivery = e.target.checked; });
+  $('bundle-file').addEventListener('change', function (e) { readFile(e.target.files[0]); });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); document.body.classList.add('dropping'); });
+  document.addEventListener('dragleave', function () { document.body.classList.remove('dropping'); });
+  document.addEventListener('drop', function (e) { e.preventDefault(); document.body.classList.remove('dropping'); readFile(e.dataTransfer.files[0]); });
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button' && e.key === ' ') return;
+    if (!S.sc) return;
+    if (e.key === ' ') { e.preventDefault(); if (S.playing) pause(); else play(); }
+    else if (e.key === 'ArrowRight') { pause(); gotoStep(S.k + 1); }
+    else if (e.key === 'ArrowLeft') { pause(); gotoStep(S.k - 1); }
+    else if (e.key === 'Home') { pause(); gotoStep(0); }
+    else if (e.key === 'End') { pause(); gotoStep(1e9); }
+  });
+  if (window.NTN_DEMO) loadBundle(window.NTN_DEMO);
+  else {
+    $('ring-host').appendChild(el('p', { class: 'empty', text: 'No data bundle found. Run "sh ./gradlew buildDemoData" to create demos/data/demo-data.js, or drop a demo-data.json on this page.' }));
+    var banner = $('banner'); banner.hidden = false; banner.textContent = 'No data bundle loaded.';
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</body>
+</html>
