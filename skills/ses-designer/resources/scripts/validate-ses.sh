@@ -122,13 +122,15 @@ list_words() {
 line_no=0
 while IFS= read -r line || [[ -n "$line" ]]; do
     line_no=$((line_no + 1))
-    # Skip blanks and comments.
+    # Skip blanks and comments (`//` is the comment form the guide and the corpus use).
     trimmed="${line#"${line%%[![:space:]]*}"}"
     [[ -z "$trimmed" ]] && continue
-    [[ "$trimmed" == \#* ]] && continue
+    [[ "$trimmed" == \#* || "$trimmed" == //* ]] && continue
 
-    # Normalize line — strip trailing carriage return from CRLF files.
+    # Normalize line — strip trailing carriage return from CRLF files, and the
+    # whitespace the guide prints before "!" (`Processors are made of more than one Processor !`).
     line="${line%$'\r'}"
+    if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+!$ ]]; then line="${BASH_REMATCH[1]}!"; fi
 
     # Must end with "!".
     if [[ "$line" != *! ]]; then

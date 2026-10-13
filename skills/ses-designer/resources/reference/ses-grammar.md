@@ -138,6 +138,8 @@ from the {ASPECT} perspective, {SENDER} sends {MSG} to {RECEIVER} as {RECV_MSG}!
 
 The optional `as {RECV_MSG}` clause renames the message on the receiver side when the sender's output port name differs from the receiver's input port name.
 
+Port names: MS4 Me prefixes the message with `out` on the sender and `in` on the receiver (`Hello` wires `outHello` to `inHello`), unless the name already starts with `out`/`in` followed by a capital letter, digit or underscore. So `GeneratorOfJobs sends outJob to Transducer as inAriv!` (p. 127) wires `outJob` to `inAriv`. A restructured copy name (`id0_Person`) may stand as an endpoint (p. 123). Which DEVS coupling results (internal, external input, external output) depends on whether an endpoint is the aspect's parent; see `ses-pes-semantics.md`.
+
 **Examples** (pp. 17, 127; the rename line is illustrative):
 
 ```

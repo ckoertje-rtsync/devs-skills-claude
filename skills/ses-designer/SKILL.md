@@ -98,6 +98,7 @@ MODEL_CONTEXT = {
 - POSIX shell (`bash`, `awk`, `grep`, `sed`) — for the grammar validators.
 - `node` and `npx` (Node.js 18+). The VALIDATE stage invokes `mmdc` via `npx --yes --package=@mermaid-js/mermaid-cli@latest`, which auto-installs on first use.
 - No JDK required. No MS4 Me install required. The skill writes text artifacts only.
+- Optional: a built checkout of `devs-vscode-extensions` for `scripts/check-ms4me.sh` (`MS4ME_EXT_DIR`, default `~/DEVS/devs-vscode-extensions`; `npm install && npm run build` once).
 
 ## Reference Library
 
@@ -108,6 +109,8 @@ MODEL_CONTEXT = {
 | `reference/ses-axioms.md` | The six SES axioms (uniformity, strict hierarchy, alternating mode, valid brothers, attached variables, inheritance) and MS4 Me's coupling-scope rule |
 | `reference/identifier-rules.md` | Valid-identifier regex, reserved keyword list, file-naming constraints |
 | `reference/mermaid-label-safety.md` | ASCII-only, no `;`, no `:=`, shape encoding for the hierarchy diagram |
+| `reference/ses-pes-semantics.md` | What the text means downstream: root and file identity, port resolution (`in`/`out` prefixes, `as`), internal vs external couplings, restructuring and copy names, what `write class files` generates, how `.dnl`/`.ses`/`.pes` link, project layout |
+| `reference/accepted-variants.md` | Forms MS4 Me accepts that the skill does not emit and which validator accepts them; reserved words; the `ms4me` checker's diagnostic codes with fixes; undocumented forms |
 | `patterns/hierarchical-construction.md` | Root-first recursion heuristic — the DISCOVER playbook |
 | `patterns/aspect-vs-specialization.md` | Decision rules for decomposition vs. variants vs. parameters |
 | `patterns/multi-aspect-idioms.md` | Plain / tagged / labeled replication; `all` vs. `each` |
@@ -120,9 +123,11 @@ MODEL_CONTEXT = {
 | `scripts/validate-ses.sh` | Per-line regex + reserved-keyword lint + cross-reference check + structural check (axioms, coupling scope) |
 | `scripts/validate-pes.sh` | PES directive regex + ordering check + `inherit from` after its `select` |
 | `scripts/validate-mermaid.sh` | Extract ` ```mermaid ``` ` blocks, render through `mmdc` |
+| `scripts/check-ms4me.sh` | The VS Code extension's `ms4me` checker on `.ses`/`.pes` (real parser, cross-file: PES against its SES, SES against `.dnl` ports); `--generate DIR` writes the coupled Java of a PES |
 | `examples/HelloWorld.{ses,pes}` | Worked example from MS4 Me User's Guide pp. 16–17 |
 | `examples/SimpleWorkFlow.{ses,pes}` | Multi-aspect + specialization + coupling rename example, pp. 127–128 |
 | `examples/SimpleWorkFlow-hierarchy.md` | Reference Mermaid rendering of the same |
+| `examples/guide/` | The guide's World, MultiEnclaveNet, Try, DatingGame and Car structures with their PES files, verbatim, and a README of what each shows |
 
 ## Stage 1 — DISCOVER
 
@@ -132,7 +137,7 @@ MODEL_CONTEXT = {
 - Markdown or plain-text files (e.g. output of `devs-model-outline`).
 - PDFs (read via the `Read` tool).
 - An informal hierarchy sketch.
-- A prior `.ses` the user wants revised — parse it with `validate-ses.sh`'s grammar to reconstruct the Model Context before editing.
+- A prior `.ses` the user wants revised — parse it with `validate-ses.sh`'s grammar to reconstruct the Model Context before editing. Guide-style and corpus files use articles, `is (are)`, multi-line statements and other forms `validate-ses.sh` rejects (`reference/accepted-variants.md` §1); run `scripts/check-ms4me.sh` on those and read them by hand.
 
 **Root-first hierarchical prompting.** Use `AskUserQuestion` whenever the answer is not clearly derivable from the inputs. Ask in this order, per `patterns/hierarchical-construction.md`:
 
@@ -272,7 +277,15 @@ resources/scripts/validate-mermaid.sh \
 
 Extracts each ` ```mermaid ``` ` block and pipes it through `mmdc`. Exit 0 iff every block rendered. See `resources/reference/mermaid-label-safety.md` for the portability rules the template follows.
 
-**4d. Self-repair.**
+**4d. `ms4me` cross-file check (recommended when the extension checkout is available).**
+
+```bash
+resources/scripts/check-ms4me.sh /tmp/ses-designer-{system_name}/
+```
+
+Parses the `.ses` and every `.pes` together with the real grammar and checks what 4a and 4b cannot: each PES name against the SES (unit, label, option, copy names), root-first, ranges, and, when the output lands in an MS4 Me project, missing model files and ports. Codes and fixes are in `reference/accepted-variants.md` §3. Add `--generate DIR` to write the coupled Java of each PES and read the expanded components and `addCoupling` lines, the quickest way to see what `all`/`each` produce; the generator needs every specialization selected. Skip this step when the checkout is absent.
+
+**4e. Self-repair.**
 
 For any failure class, perform **exactly one** self-repair pass — fix the reported error in the offending artifact and retry the corresponding check. If it still fails, continue to WRITE but surface the errors clearly in the user-facing summary.
 
@@ -281,7 +294,7 @@ For any failure class, perform **exactly one** self-repair pass — fix the repo
 Resolve the output directory using this policy (first match wins):
 
 1. **User-specified path** in the prompt → always honored.
-2. **MS4 Me project detected** — any of: a `/ses/` directory at or above cwd; a `.project` file referencing `com.ms4systems.devs.*`; an `ms4me/` marker directory. Output to `{project_root}/ses/`.
+2. **MS4 Me project detected** — a `src/Models/ses/` directory at or above cwd, or a `.project` file referencing `com.ms4systems.devs.*`. Write the `.ses` to `src/Models/ses/` and the `.pes` files to `src/Models/pes/` (MS4 Me's layout; a PES finds its SES in the `ses/` folder beside its own, `reference/ses-pes-semantics.md` §7). A bare `ses/` directory with no `src/Models/` above it takes both files.
 3. **Inside the `devs-skills-claude` project** (detected by walking up from cwd and matching the path prefix `/home/chris/DEVS/devs-skills-claude/`, or finding a `CLAUDE.md` that names the repo): `test/ses-designer/{system_name}/`.
 4. **Inside a Maven project** (`pom.xml` at or above cwd): `src/main/ses/{system_name}/`.
 5. **Inside a Gradle project** (`build.gradle` or `build.gradle.kts`): same as Maven.

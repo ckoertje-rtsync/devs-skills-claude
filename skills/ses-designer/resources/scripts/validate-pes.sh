@@ -55,7 +55,9 @@ while IFS= read -r raw || [[ -n "$raw" ]]; do
     line="${raw%$'\r'}"
     trimmed="${line#"${line%%[![:space:]]*}"}"
     [[ -z "$trimmed" ]] && continue
-    [[ "$trimmed" == \#* ]] && continue
+    [[ "$trimmed" == \#* || "$trimmed" == //* ]] && continue
+    # The guide prints a space before "!" (`write class files !`); accept it.
+    if [[ "$line" =~ ^(.*[^[:space:]])[[:space:]]+!$ ]]; then line="${BASH_REMATCH[1]}!"; fi
     lines+=("$line")
     lnums+=("$line_no")
 done < "$file"

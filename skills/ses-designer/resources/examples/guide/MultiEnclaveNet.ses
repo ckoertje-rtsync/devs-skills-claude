@@ -1,0 +1,15 @@
+From the overall perspective, MultiEnclaveNet is made of Enclaves!
+From the multiEnclave perspective, Enclaves are made of more than one Enclave!
+//sharing of updates among enclaves
+From the overall perspective, all Enclave sends DBUpdate to all Enclave!
+Enclave can be enclaveid in index!
+From the enclave perspective, Enclave is made of DBServer and Clients!
+From the multiclient perspective, Clients are made of more than one Client!
+Client can be clientid in index!
+//interaction of clients and servers within an enclave
+From the enclave perspective, all Client sends DBQuery to DBServer!
+From the enclave perspective, all Client sends DBUpdate to DBServer!
+From the enclave perspective, DBServer sends DBResponse to all Client!
+//connecting the server within an enclave to the enclosing enclave
+From the enclave perspective, DBServer sends DBUpdate to Enclave!
+From the enclave perspective, Enclave sends DBUpdate to DBServer!

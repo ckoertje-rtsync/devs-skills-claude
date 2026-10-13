@@ -1,0 +1,11 @@
+From the dating perspective, the DatingGame is made of Boys and Girls!
+From the boy perspective, Boys are made of more than one Boy!
+Boy can be shortish, medium, or tall in height!
+From the girl perspective, Girls are made of more than one Girl!
+Girl can be shortish, medium, or tall in height!
+From the dating perspective, all Boy sends Hello to all Boy!
+From the dating perspective, all Girl sends Hello to all Girl!
+From the dating perspective, all Girl sends NiceToMeetYou to all Boy!
+From the dating perspective, each Boy sends Invitation to each Girl!
+From the dating perspective, short_Boy sends Greeting to all Girl!
+From the dating perspective, DatingGame sends MakeInvitation to all Boy!

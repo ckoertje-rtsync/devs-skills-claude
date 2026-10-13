@@ -1,0 +1,6 @@
+set name of model as MultiEnclaveNet!
+pruned from MultiEnclaveNet.ses!
+restructure multiaspects using index!
+set multiplicity of index as [2] for Enclave!
+set multiplicity of index as [3] for Client!
+write class files!

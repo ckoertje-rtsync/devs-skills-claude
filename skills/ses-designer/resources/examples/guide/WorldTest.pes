@@ -1,0 +1,7 @@
+set name of model as WorldTest!
+pruned from World.ses!
+restructure multiaspects using index!
+set multiplicity of index as [3] for Person!
+select medium from height for id1_Person!
+inherit from medium!
+write class files!

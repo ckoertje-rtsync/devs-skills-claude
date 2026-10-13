@@ -1,0 +1,7 @@
+set name of model as Try !
+pruned from Try.ses !
+mergeAll from Try.ses !
+restructure multiaspects using index!
+set multiplicity of index as [10] for AA!
+don't select CC under AA!
+write class files !

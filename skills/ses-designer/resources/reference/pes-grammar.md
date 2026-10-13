@@ -108,6 +108,7 @@ set multiplicity of index as [3] for Client!
 **Constraints.**
 
 - `{LABEL}` must appear in a `restructure multiaspects using ...!` line earlier in the same PES.
+- `{LABEL}` must also be a specialization label declared on `{ENTITY}` in the `.ses` (`Enclave can be enclaveid in index!`); `restructure` alone does not create it. The `ms4me` checker reports `pes.label-not-in-ses` otherwise (`accepted-variants.md`).
 - `{ENTITY}` must be the unit entity of a multi-aspect in the referenced `.ses`.
 - For nested multi-aspects, every parent copy gets the same number of children. The guide calls this a limitation of the current version (p. 127).
 - Do not set the multiplicity of a label you use to match copies in `each`/`each` couplings. The guide's DatingGame matches on `height` and works "provided you don't use height as the basis for identifying multi-entity copies" (p. 124).
@@ -135,6 +136,7 @@ select medium from height for id1_Person!
 **Constraints.**
 
 - The `from {LABEL}` part is required. The guide never shows `select {OPT} for {ENTITY}!`, and the validator rejects that form.
+- The VS Code extension's generator refuses to write class files while any specialization of any entity or copy is unselected; MS4 Me instead picks at random (pp. 122, 168). A PES meant for `check-ms4me.sh --generate` selects every label on every copy (`ses-pes-semantics.md` §5).
 - For a multi-aspect unit, select on the **copies** after restructuring (`id1_Person`), not on the unit (`Person`). Each copy inherits the unit's specializations and can be pruned independently (p. 122).
 - `{ENTITY}` may itself be a selected option that has its own specialization (`ConstantAcceleration` above, p. 158).
 - An entity with more than one aspect also needs an aspect choice, which is made in the interactive pruning view (p. 168). The guide documents no text directive for it, so a PES written by hand leaves that choice to random selection.
@@ -288,4 +290,4 @@ write class files!
 
 `validate-pes.sh` enforces rules 1, 2, and 9, checks that every multiplicity label appears in an earlier `restructure` and that every `inherit from` follows its `select`, and rejects any line that matches none of the directives above. It does not read the `.ses`, so it cannot tell whether a `select` targets a multi-aspect unit instead of its copies.
 
-Blank lines are permitted between directives. `#`-prefixed comments are common but unofficial, and MS4 Me may tolerate them in recent versions. The validator skips both.
+Blank lines and `//` comment lines are permitted between directives (the corpus uses both; neither MS4 Me's grammar nor the VS Code extension's has a `#` comment). `validate-pes.sh` skips blank lines and both comment styles, and accepts the space the guide prints before `!`.

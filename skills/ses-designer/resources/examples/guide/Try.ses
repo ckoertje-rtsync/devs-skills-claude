@@ -1,0 +1,4 @@
+From the cellAssembly perspective, Try is made of CellGroup!
+From the multicell perspective, CellGroup is made of more than one AA!
+AA can be BB, CC, or DD in type!
+AA can be id in index!

@@ -13,6 +13,7 @@ Regex (POSIX-extended):
 - Must start with a letter or underscore.
 - May contain letters, digits, underscores, and dashes.
 - Dashes are **allowed in SES** (and PES). This differs from Atomic DEVS (`.dnl`), which forbids them.
+- Names that become Java identifiers may not contain a dash: entity names become class names, message names become port fields (`inM`, `outM`), copy names become instance names. Dashes are safe only in aspect labels, specialization labels and variable names (`ses-pes-semantics.md` §6).
 - No spaces, no periods, no other punctuation.
 
 ## Valid examples

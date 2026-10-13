@@ -1,0 +1,10 @@
+from the structural perspective, a Car is made of an Engine, the Transmission, and a Chassis !
+the Transmission can be an Automatic or a Manual in gearShift!
+Engine can be ElectricEngine, GasolineEngine or NaturalGasEngine in engineType!
+from the structural perspective, Engine sends Rotation to Transmission!
+from the structural perspective, Transmission sends Motion to Chassis!
+Engine has HoursRun and Pressure!
+the range of Engine's HoursRun is number with values [0, 100000]!
+the range of Engine's Pressure is number with values (-6.3, 6.3]!
+Transmission has GearType!
+the range of Transmission's GearType is string with values Automatic, Manual and CVT!
