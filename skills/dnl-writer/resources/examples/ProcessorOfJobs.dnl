@@ -1,0 +1,18 @@
+accepts input on Job with type WorkToDo !
+generates output on Job with type WorkToDo !
+use count with type int and default "0"!
+use storedJob with type WorkToDo and default "new WorkToDo()"!
+to start, passivate in waitForJob!
+when in waitForJob and receive Job then go to sendJob !
+hold in sendJob for time 50 !
+after sendJob output Job !
+from sendJob go to waitForJob !
+external event for waitForJob with Job
+<%
+ storedJob =    messageList.get(0).getData();
+ holdIn("sendJob",storedJob.getProcessingTime());
+%>!
+output event for sendJob
+<%
+    output.add(outJob, storedJob);
+%>!

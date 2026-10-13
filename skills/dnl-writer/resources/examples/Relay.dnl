@@ -1,0 +1,31 @@
+// Relay: answers every Ping with a Pong after a fixed delay, counting the pings.
+// Shows the zero-or-small-time reply idiom, a typed port, a variable and an output event.
+accepts input on Ping with type String!
+generates output on Pong with type String!
+
+use delay with type double and default "0.5"!
+use pings with type int and default "0"!
+use lastPing with type String!
+
+to start passivate in idle!
+when in idle and receive Ping go to reply!
+
+hold in reply for time "delay"!
+after reply output Pong!
+from reply go to idle!
+when in reply and receive Ping go to reply eventually!
+
+external event for idle with Ping
+<%
+    pings++;
+    lastPing = (String) messageList.get(0).getData();
+%>!
+external event for reply with Ping
+<%
+    pings++;
+    lastPing = (String) messageList.get(0).getData();
+%>!
+output event for reply
+<%
+    output.add(outPong, "pong " + pings + " for " + lastPing);
+%>!

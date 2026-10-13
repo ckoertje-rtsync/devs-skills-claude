@@ -1,0 +1,36 @@
+accepts input on Stop !
+generates output on Job with type WorkToDo !
+WorkToDo has id, startTime, and processingTime!
+range of WorkToDo's id is int !
+range of WorkToDo's processingTime is double!
+range of WorkToDo's startTime is double!
+use count with type int and default "0"!
+use numberOfJobs with type int and default "50"!
+use wtd with type WorkToDo!
+to start hold in generate for time 10!
+after generate output Job !
+from generate go to generate !
+when in generate and receive Stop then go to passive !
+passivate in passive !
+Initialize variables
+<%
+wtd = new WorkToDo();
+wtd.setId(count);
+wtd.setProcessingTime(20+count);
+%>
+!
+output event for generate
+<%
+      output.add(outJob, wtd);
+%>!
+Internal event for generate
+<%
+count ++;
+if (count>=numberOfJobs)
+passivateIn("passive");
+else{
+wtd = new WorkToDo();
+wtd.setId(count);
+wtd.setProcessingTime(20+count);
+}
+%>!

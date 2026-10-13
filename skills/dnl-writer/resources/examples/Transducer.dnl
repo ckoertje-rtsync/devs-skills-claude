@@ -1,0 +1,57 @@
+use jobsArrived with type HashSet!
+use jobsSolved with type HashSet!
+use observationTime with type double and default "10000"!
+use totalTa with type double !
+use clock with type double !
+accepts input on Ariv with type WorkToDo !
+accepts input on Solved with type WorkToDo!
+generates output on Stop with type String !
+to start hold in observe for time 1000!
+after observe output Stop !
+from observe go to done !
+when in observe and receive Ariv then go to observe eventually!
+when in observe and receive Solved then go to observe eventually!
+passivate in done !
+Initialize variables
+<%
+jobsArrived = new HashSet();
+jobsSolved = new HashSet();
+//observationTime = 1000;
+totalTa = 0;
+clock = 0;
+holdIn("observe",observationTime);
+%> !
+external event for observe with Ariv
+<%
+clock = clock +timeElapsed;
+WorkToDo job = messageList.get(0).getData();
+job.setStartTime(clock);
+System.out.println("Start job " + job.getId() + " @ startTime = " + clock);
+jobsArrived.add(job);
+%>!
+external event for observe with Solved
+<%
+      clock = clock + timeElapsed;
+      WorkToDo job = messageList.get(0).getData();
+      WorkToDo arrived = null;
+      for (Object o : jobsArrived) {
+            WorkToDo j = (WorkToDo) o;
+            if (j.getId() == job.getId()) {
+                  arrived = j;
+                  break;
+            }
+      }
+      totalTa += (clock - arrived.getStartTime());
+      System.out.println("Finish job " + arrived.getId()
+                  + " @ startTime = " + clock);
+      job.setStartTime(clock);
+      jobsSolved.add(job);
+%>!
+internal event for observe
+<%
+clock = clock + getTimeAdvance();
+%>!
+add library
+<%
+import java.util.HashSet;
+%>!

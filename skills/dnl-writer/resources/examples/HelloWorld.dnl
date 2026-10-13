@@ -1,0 +1,4 @@
+to start hold in HelloWorld for time 1.0!
+after HelloWorld output Hello!
+from HelloWorld go to HelloWorld!
+when in HelloWorld and receive Hi then go to HelloWorld!
