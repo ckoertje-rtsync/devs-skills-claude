@@ -1,0 +1,126 @@
+/**
+\page devs_jobprocessor JobProcessor DEVS atomic model
+
+\tableofcontents
+
+\section jobprocessor_overview Overview
+
+Single-server processor without a queue. It accepts one job on `in` while
+`passive`, holds in `busy` for a fixed processing time, emits the job on `out`
+and returns to `passive`. Jobs arriving while busy are dropped.
+
+| | |
+|---|---|
+| Kind | Atomic DEVS model |
+| Formalism | Parallel DEVS (PythonPDEVS) |
+| Language / framework | Python / PythonPDEVS (pypdevs) |
+| Source | `gen_proc.py` ( \ref gen_proc.JobProcessor ) |
+| Parameters | `name` (default `"proc"`), `processing_time` (default 1.0) |
+| Initial state | phase `passive`, sigma = INFINITY, job = None, processed = 0 |
+
+\section jobprocessor_formal Formal specification
+
+    M = < X, Y, S, delta_int, delta_ext, delta_con, lambda, ta >
+
+- X = { (p, v) : p in InPorts, v in X_p } with InPorts = { in }
+- Y = { (p, v) : p in OutPorts, v in Y_p } with OutPorts = { out }
+- S = { passive, busy } x R0+ (sigma) x (Job or None) x N (processed)
+- ta, delta_int, delta_ext, delta_con and lambda are tabulated in the sections below.
+
+\section jobprocessor_ports Ports
+
+\subsection jobprocessor_inports Input ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `in` | `Job` | job to be processed; only the first value of the bag is taken |
+
+\subsection jobprocessor_outports Output ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `out` | `Job` | the finished job |
+
+\section jobprocessor_state State
+
+\subsection jobprocessor_phases Phases
+
+| Phase | ta(s) | Meaning |
+|---|---|---|
+| `passive` | inf | idle, waiting for a job |
+| `busy` | processing_time | serving the current job |
+
+\subsection jobprocessor_vars State variables
+
+| Variable | Type | Initial value | Description |
+|---|---|---|---|
+| `phase` | `str` | `"passive"` | discrete phase |
+| `sigma` | `float` | `INFINITY` | remaining hold time |
+| `job` | `Job` | `None` | job being served |
+| `processed` | `int` | 0 | completed-job counter |
+
+The variables are held in \ref gen_proc.ProcessorState "ProcessorState".
+
+\section jobprocessor_ta Time advance ta(s)
+
+`ta(s) = sigma`: `processing_time` while busy, `INFINITY` while passive.
+
+\section jobprocessor_dint Internal transition delta_int(s)
+
+| From phase | To phase | Action |
+|---|---|---|
+| `busy` | `passive` | processed += 1; job = None; sigma = INFINITY |
+
+\section jobprocessor_dext External transition delta_ext(s, e, x)
+
+| From phase | Port | Condition | To phase | Action |
+|---|---|---|---|---|
+| `passive` | `in` | at least one job in the bag | `busy` | job = first job; sigma = processing_time |
+| `busy` | `in` | any | `busy` | sigma -= e; arriving jobs are dropped |
+
+In PythonPDEVS the elapsed time e is `self.elapsed` inside `extTransition`.
+
+\section jobprocessor_dcon Confluent transition delta_con(s, x)
+
+Overridden: delta_int first, then delta_ext with `self.elapsed = 0.0`. A job
+that arrives exactly when the current job completes is accepted immediately.
+
+\section jobprocessor_lambda Output function lambda(s)
+
+| Phase | Port | Value |
+|---|---|---|
+| `busy` | `out` | the current job |
+
+\section jobprocessor_diagram State diagram
+
+Solid edges are internal transitions (fired when ta(s) expires); dashed edges
+are external transitions (fired on input). Labels use `trigger / action`.
+
+\dot
+digraph jobprocessor_states {
+    rankdir=LR;
+    node [shape=ellipse, fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    __init [shape=point];
+    passive [label="passive\n(ta = inf)"];
+    busy [label="busy\n(ta = processing_time)"];
+    __init -> passive;
+    busy -> passive [label="int / emit job, processed += 1"];
+    passive -> busy [label="ext: in / job = first job", style=dashed];
+    busy -> busy [label="ext: in / drop, sigma -= e", style=dashed];
+}
+\enddot
+
+\section jobprocessor_source Source mapping
+
+| DEVS element | Implementation in `gen_proc.py` |
+|---|---|
+| Ports | \ref gen_proc.JobProcessor.inport "JobProcessor.inport" (`"in"`), \ref gen_proc.JobProcessor.outport "JobProcessor.outport" (`"out"`) |
+| State | \ref gen_proc.ProcessorState "ProcessorState" held in `JobProcessor.state` |
+| Initialization | \ref gen_proc.JobProcessor.__init__ "JobProcessor.__init__()" |
+| ta | \ref gen_proc.JobProcessor.timeAdvance "JobProcessor.timeAdvance()" |
+| delta_int | \ref gen_proc.JobProcessor.intTransition "JobProcessor.intTransition()" |
+| delta_ext | \ref gen_proc.JobProcessor.extTransition "JobProcessor.extTransition()" |
+| delta_con | \ref gen_proc.JobProcessor.confTransition "JobProcessor.confTransition()" |
+| lambda | \ref gen_proc.JobProcessor.outputFnc "JobProcessor.outputFnc()" |
+*/

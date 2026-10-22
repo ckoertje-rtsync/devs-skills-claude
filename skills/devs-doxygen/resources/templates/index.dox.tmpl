@@ -1,0 +1,38 @@
+/**
+\mainpage {{system_name}} DEVS model documentation
+
+{{description}}
+
+| | |
+|---|---|
+| Root model | \ref devs_{{root_slug}} |
+| Language / framework | {{language}} / {{framework}} |
+| Source | `{{source_root}}` |
+| Generated | {{date}} by the devs-doxygen skill |
+
+\section index_models Models
+
+| Model | Kind | Source | Specification |
+|---|---|---|---|
+{{#each models}}| {{name}} | {{kind}} | `{{source_file}}` | {{link}} |
+{{/each}}
+
+\section index_hierarchy Composition hierarchy
+
+\dot
+digraph {{system_slug}}_hierarchy {
+    rankdir=TB;
+    node [shape=box, fontname="Helvetica", fontsize=10];
+{{#each models}}    {{id}} [label="{{name}}\n({{kind}})"{{style}}];
+{{/each}}
+{{#each containment}}    {{parent_id}} -> {{child_id}} [label="{{component_name}}"];
+{{/each}}
+}
+\enddot
+
+\section index_regen Regenerating this documentation
+
+Run `doxygen Doxyfile` in the directory that holds this file and open
+`html/index.html`. The DEVS specifications live in the `.dox` files next to
+the Doxyfile; the API pages are extracted from the model sources listed above.
+*/

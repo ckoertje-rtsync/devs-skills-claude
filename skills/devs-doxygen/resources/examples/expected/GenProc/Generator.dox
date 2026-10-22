@@ -1,0 +1,129 @@
+/**
+\page devs_generator Generator DEVS atomic model
+
+\tableofcontents
+
+\section generator_overview Overview
+
+Periodic job source. While `active` it emits a new `Job` on `out` every
+`period` time units; any message on `stop` makes it `passive` for good.
+
+| | |
+|---|---|
+| Kind | Atomic DEVS model |
+| Formalism | Parallel DEVS (PythonPDEVS) |
+| Language / framework | Python / PythonPDEVS (pypdevs) |
+| Source | `gen_proc.py` ( \ref gen_proc.Generator ) |
+| Parameters | `name` (default `"gen"`), `period` (default 2.0) |
+| Initial state | phase `active`, sigma = period, count = 0 |
+
+\section generator_formal Formal specification
+
+    M = < X, Y, S, delta_int, delta_ext, delta_con, lambda, ta >
+
+- X = { (p, v) : p in InPorts, v in X_p } with InPorts = { stop }
+- Y = { (p, v) : p in OutPorts, v in Y_p } with OutPorts = { out }
+- S = { active, passive } x R0+ (sigma) x N (count)
+- ta, delta_int, delta_ext, delta_con and lambda are tabulated in the sections below.
+
+\section generator_ports Ports
+
+\subsection generator_inports Input ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `stop` | any | any message silences the generator |
+
+\subsection generator_outports Output ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `out` | `Job` | the job emitted at the end of each period |
+
+\section generator_state State
+
+\subsection generator_phases Phases
+
+| Phase | ta(s) | Meaning |
+|---|---|---|
+| `active` | period | counting down to the next job |
+| `passive` | inf | stopped, no further output |
+
+\subsection generator_vars State variables
+
+| Variable | Type | Initial value | Description |
+|---|---|---|---|
+| `phase` | `str` | `"active"` | discrete phase |
+| `sigma` | `float` | period | remaining time in the current phase |
+| `count` | `int` | 0 | id of the next job, incremented per emission |
+
+The variables are held in \ref gen_proc.GeneratorState "GeneratorState".
+
+\section generator_ta Time advance ta(s)
+
+`ta(s) = sigma`: `period` while active, `INFINITY` once passive.
+
+\section generator_dint Internal transition delta_int(s)
+
+| From phase | To phase | Action |
+|---|---|---|
+| `active` | `active` | count += 1; sigma = period |
+
+`passive` has ta = inf, so delta_int is never invoked there.
+
+\section generator_dext External transition delta_ext(s, e, x)
+
+| From phase | Port | Condition | To phase | Action |
+|---|---|---|---|---|
+| `active` | `stop` | a message is present | `passive` | sigma = INFINITY |
+| `passive` | `stop` | a message is present | `passive` | sigma = INFINITY (no change) |
+
+In PythonPDEVS the elapsed time e is `self.elapsed` inside `extTransition`.
+The source also has an else branch (`sigma -= e` when nothing arrived on
+`stop`), which is unreachable because `stop` is the only input port.
+
+\section generator_dcon Confluent transition delta_con(s, x)
+
+Not overridden. PythonPDEVS applies the framework default: delta_int first,
+then delta_ext with e = 0. A `stop` arriving exactly when a job is due is
+processed after that job is emitted.
+
+\section generator_lambda Output function lambda(s)
+
+| Phase | Port | Value |
+|---|---|---|
+| `active` | `out` | `Job(count)` |
+
+\section generator_diagram State diagram
+
+Solid edges are internal transitions (fired when ta(s) expires); dashed edges
+are external transitions (fired on input). Labels use `trigger / action`.
+
+\dot
+digraph generator_states {
+    rankdir=LR;
+    node [shape=ellipse, fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    __init [shape=point];
+    active [label="active\n(ta = period)"];
+    passive [label="passive\n(ta = inf)"];
+    __init -> active;
+    active -> active [label="int / emit Job(count), count += 1"];
+    active -> passive [label="ext: stop / sigma = inf", style=dashed];
+    passive -> passive [label="ext: stop / stay passive", style=dashed];
+}
+\enddot
+
+\section generator_source Source mapping
+
+| DEVS element | Implementation in `gen_proc.py` |
+|---|---|
+| Ports | \ref gen_proc.Generator.stop "Generator.stop", \ref gen_proc.Generator.out "Generator.out" (created in `__init__`) |
+| State | \ref gen_proc.GeneratorState "GeneratorState" held in `Generator.state` |
+| Initialization | \ref gen_proc.Generator.__init__ "Generator.__init__()" |
+| ta | \ref gen_proc.Generator.timeAdvance "Generator.timeAdvance()" |
+| delta_int | \ref gen_proc.Generator.intTransition "Generator.intTransition()" |
+| delta_ext | \ref gen_proc.Generator.extTransition "Generator.extTransition()" |
+| delta_con | inherited from `AtomicDEVS` (framework default) |
+| lambda | \ref gen_proc.Generator.outputFnc "Generator.outputFnc()" |
+*/

@@ -1,0 +1,130 @@
+/**
+{{page_directive}}
+
+\tableofcontents
+
+\section {{slug}}_overview Overview
+
+{{description}}
+
+| | |
+|---|---|
+| Kind | Atomic DEVS model |
+| Formalism | {{formalism}} |
+| Language / framework | {{language}} / {{framework}} |
+| Source | `{{source_file}}` ( \ref {{class_ref}} ) |
+| Parameters | {{parameters}} |
+| Initial state | phase `{{initial_phase}}`, {{initial_state_notes}} |
+
+\section {{slug}}_formal Formal specification
+
+    M = < X, Y, S, delta_int, delta_ext, delta_con, lambda, ta >
+
+- X = { (p, v) : p in InPorts, v in X_p } with InPorts = { {{in_port_names}} }
+- Y = { (p, v) : p in OutPorts, v in Y_p } with OutPorts = { {{out_port_names}} }
+- S = {{state_set}}
+- ta, delta_int, delta_ext, delta_con and lambda are tabulated in the sections below.
+
+\section {{slug}}_ports Ports
+
+\subsection {{slug}}_inports Input ports
+
+| Port | Value type | Description |
+|---|---|---|
+{{#each input_ports}}| `{{name}}` | `{{type}}` | {{description}} |
+{{/each}}
+
+\subsection {{slug}}_outports Output ports
+
+| Port | Value type | Description |
+|---|---|---|
+{{#each output_ports}}| `{{name}}` | `{{type}}` | {{description}} |
+{{/each}}
+
+\section {{slug}}_state State
+
+\subsection {{slug}}_phases Phases
+
+| Phase | ta(s) | Meaning |
+|---|---|---|
+{{#each phases}}| `{{name}}` | {{sigma}} | {{meaning}} |
+{{/each}}
+
+\subsection {{slug}}_vars State variables
+
+| Variable | Type | Initial value | Description |
+|---|---|---|---|
+{{#each state_variables}}| `{{name}}` | `{{type}}` | {{initial}} | {{description}} |
+{{/each}}
+
+\section {{slug}}_ta Time advance ta(s)
+
+{{ta_rule}}
+
+\section {{slug}}_dint Internal transition delta_int(s)
+
+| From phase | To phase | Action |
+|---|---|---|
+{{#each internal_transitions}}| `{{from}}` | `{{to}}` | {{action}} |
+{{/each}}
+
+\section {{slug}}_dext External transition delta_ext(s, e, x)
+
+| From phase | Port | Condition | To phase | Action |
+|---|---|---|---|---|
+{{#each external_transitions}}| `{{from}}` | `{{port}}` | {{condition}} | `{{to}}` | {{action}} |
+{{/each}}
+
+{{elapsed_time_note}}
+
+\section {{slug}}_dcon Confluent transition delta_con(s, x)
+
+{{confluent_rule}}
+
+\section {{slug}}_lambda Output function lambda(s)
+
+| Phase | Port | Value |
+|---|---|---|
+{{#each outputs}}| `{{phase}}` | `{{port}}` | {{value}} |
+{{/each}}
+
+\section {{slug}}_diagram State diagram
+
+Solid edges are internal transitions (fired when ta(s) expires); dashed edges
+are external transitions (fired on input). Labels use `trigger / action`.
+
+\dot
+digraph {{slug}}_states {
+    rankdir=LR;
+    node [shape=ellipse, fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    __init [shape=point];
+{{#each phases}}    {{id}} [label="{{name}}\n(ta = {{sigma}})"];
+{{/each}}
+    __init -> {{initial_phase_id}};
+{{#each internal_transitions}}    {{from_id}} -> {{to_id}} [label="int / {{dot_action}}"];
+{{/each}}
+{{#each external_transitions}}    {{from_id}} -> {{to_id}} [label="ext: {{port}} / {{dot_action}}", style=dashed];
+{{/each}}
+}
+\enddot
+
+\section {{slug}}_source Source mapping
+
+| DEVS element | Implementation in `{{source_file}}` |
+|---|---|
+| Ports | {{ports_impl}} |
+| State | {{state_impl}} |
+| Initialization | {{init_impl}} |
+| ta | {{ta_impl}} |
+| delta_int | {{dint_impl}} |
+| delta_ext | {{dext_impl}} |
+| delta_con | {{dcon_impl}} |
+| lambda | {{lambda_impl}} |
+
+{{#if notes}}
+\section {{slug}}_notes Notes
+
+{{notes}}
+{{/if}}
+*/

@@ -1,0 +1,42 @@
+/**
+\mainpage GenProc DEVS model documentation
+
+Generator feeding a single-server job processor, written against PythonPDEVS.
+`GenProc` couples a periodic `Generator` to a `JobProcessor` and re-exports the
+processor's `out` port; an external `stop` input silences the generator.
+
+| | |
+|---|---|
+| Root model | \ref devs_genproc |
+| Language / framework | Python / PythonPDEVS (pypdevs) |
+| Source | `gen_proc.py` |
+| Generated | 2026-10-13 by the devs-doxygen skill |
+
+\section index_models Models
+
+| Model | Kind | Source | Specification |
+|---|---|---|---|
+| GenProc | coupled | `gen_proc.py` | \subpage devs_genproc |
+| Generator | atomic | `gen_proc.py` | \ref devs_generator |
+| JobProcessor | atomic | `gen_proc.py` | \ref devs_jobprocessor |
+
+\section index_hierarchy Composition hierarchy
+
+\dot
+digraph genproc_hierarchy {
+    rankdir=TB;
+    node [shape=box, fontname="Helvetica", fontsize=10];
+    genproc [label="GenProc\n(coupled)", style=rounded];
+    generator [label="Generator\n(atomic)"];
+    jobprocessor [label="JobProcessor\n(atomic)"];
+    genproc -> generator [label="gen"];
+    genproc -> jobprocessor [label="proc"];
+}
+\enddot
+
+\section index_regen Regenerating this documentation
+
+Run `doxygen Doxyfile` in the directory that holds this file and open
+`html/index.html`. The DEVS specifications live in the `.dox` files next to
+the Doxyfile; the API pages are extracted from the model sources listed above.
+*/

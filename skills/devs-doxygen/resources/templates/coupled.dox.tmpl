@@ -1,0 +1,118 @@
+/**
+{{page_directive}}
+
+\tableofcontents
+
+\section {{slug}}_overview Overview
+
+{{description}}
+
+| | |
+|---|---|
+| Kind | Coupled DEVS model |
+| Formalism | {{formalism}} |
+| Language / framework | {{language}} / {{framework}} |
+| Source | `{{source_file}}` ( \ref {{class_ref}} ) |
+| Parameters | {{parameters}} |
+
+\section {{slug}}_formal Formal specification
+
+    N = < X, Y, D, {M_d}, EIC, IC, EOC{{select_tuple}} >
+
+- X = external input ports { {{in_port_names}} }
+- Y = external output ports { {{out_port_names}} }
+- D = { {{component_names}} }
+- M_d, EIC, IC and EOC are tabulated in the sections below.
+{{select_rule}}
+
+\section {{slug}}_ports Ports
+
+\subsection {{slug}}_inports External input ports
+
+| Port | Value type | Description |
+|---|---|---|
+{{#each input_ports}}| `{{name}}` | `{{type}}` | {{description}} |
+{{/each}}
+
+\subsection {{slug}}_outports External output ports
+
+| Port | Value type | Description |
+|---|---|---|
+{{#each output_ports}}| `{{name}}` | `{{type}}` | {{description}} |
+{{/each}}
+
+\section {{slug}}_components Components (D and M_d)
+
+| Component | Model | Kind | Parameters | Specification |
+|---|---|---|---|---|
+{{#each components}}| `{{name}}` | {{model}} | {{kind}} | {{parameters}} | {{spec_link}} |
+{{/each}}
+
+\section {{slug}}_couplings Couplings
+
+\subsection {{slug}}_eic External input couplings (EIC)
+
+| Coupled port | Component | Component port |
+|---|---|---|
+{{#each eic}}| `{{coupled_port}}` | `{{component}}` | `{{component_port}}` |
+{{/each}}
+
+\subsection {{slug}}_ic Internal couplings (IC)
+
+| From component | From port | To component | To port |
+|---|---|---|---|
+{{#each ic}}| `{{from}}` | `{{from_port}}` | `{{to}}` | `{{to_port}}` |
+{{/each}}
+
+\subsection {{slug}}_eoc External output couplings (EOC)
+
+| Component | Component port | Coupled port |
+|---|---|---|
+{{#each eoc}}| `{{component}}` | `{{component_port}}` | `{{coupled_port}}` |
+{{/each}}
+
+\section {{slug}}_diagram Coupling diagram
+
+\dot
+digraph {{slug}}_couplings {
+    rankdir=LR;
+    node [fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    subgraph cluster_{{slug}} {
+        label="{{name}}";
+        style=rounded;
+{{#each components}}        {{id}} [shape=box, label="{{name}} : {{model}}"];
+{{/each}}    }
+{{#each input_ports}}    in_{{id}} [shape=plaintext, label="{{name}}"];
+{{/each}}{{#each output_ports}}    out_{{id}} [shape=plaintext, label="{{name}}"];
+{{/each}}{{#each eic}}    in_{{coupled_port_id}} -> {{component_id}} [label="{{coupled_port}} -> {{component_port}}"];
+{{/each}}{{#each ic}}    {{from_id}} -> {{to_id}} [label="{{from_port}} -> {{to_port}}"];
+{{/each}}{{#each eoc}}    {{component_id}} -> out_{{coupled_port_id}} [label="{{component_port}} -> {{coupled_port}}"];
+{{/each}}}
+\enddot
+
+\section {{slug}}_sequence Typical interaction
+
+{{sequence_intro}}
+
+\msc
+    hscale = "1.6";
+    {{sequence_participants}};
+{{#each sequence_steps}}    {{from_id}}->{{to_id}} [label="{{label}}"];
+{{/each}}
+\endmsc
+
+\section {{slug}}_source Source mapping
+
+| Element | Implementation in `{{source_file}}` |
+|---|---|
+| Ports | {{ports_impl}} |
+| Components | {{components_impl}} |
+| Couplings | {{couplings_impl}} |
+
+{{#if notes}}
+\section {{slug}}_notes Notes
+
+{{notes}}
+{{/if}}
+*/

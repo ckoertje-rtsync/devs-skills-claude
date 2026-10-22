@@ -1,0 +1,117 @@
+/**
+\page devs_genproc GenProc DEVS coupled model
+
+\tableofcontents
+
+\section genproc_overview Overview
+
+Generator feeding a single-server JobProcessor. The external `stop` input is
+routed to the generator; the processor's `out` port is re-exported as the
+coupled model's `out`.
+
+| | |
+|---|---|
+| Kind | Coupled DEVS model |
+| Formalism | Parallel DEVS (PythonPDEVS) |
+| Language / framework | Python / PythonPDEVS (pypdevs) |
+| Source | `gen_proc.py` ( \ref gen_proc.GenProc ) |
+| Parameters | `name` (default `"GenProc"`), `period` (default 2.0), `processing_time` (default 1.0) |
+
+\section genproc_formal Formal specification
+
+    N = < X, Y, D, {M_d}, EIC, IC, EOC >
+
+- X = external input ports { stop }
+- Y = external output ports { out }
+- D = { gen, proc }
+- M_d, EIC, IC and EOC are tabulated in the sections below.
+- No Select function: PythonPDEVS is a Parallel DEVS simulator, so simultaneous
+  events are resolved by the components' confluent transitions.
+
+\section genproc_ports Ports
+
+\subsection genproc_inports External input ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `stop` | any | forwarded to the generator; any message stops job generation |
+
+\subsection genproc_outports External output ports
+
+| Port | Value type | Description |
+|---|---|---|
+| `out` | `Job` | finished jobs leaving the processor |
+
+\section genproc_components Components (D and M_d)
+
+| Component | Model | Kind | Parameters | Specification |
+|---|---|---|---|---|
+| `gen` | Generator | atomic | period | \subpage devs_generator |
+| `proc` | JobProcessor | atomic | processing_time | \subpage devs_jobprocessor |
+
+\section genproc_couplings Couplings
+
+\subsection genproc_eic External input couplings (EIC)
+
+| Coupled port | Component | Component port |
+|---|---|---|
+| `stop` | `gen` | `stop` |
+
+\subsection genproc_ic Internal couplings (IC)
+
+| From component | From port | To component | To port |
+|---|---|---|---|
+| `gen` | `out` | `proc` | `in` |
+
+\subsection genproc_eoc External output couplings (EOC)
+
+| Component | Component port | Coupled port |
+|---|---|---|
+| `proc` | `out` | `out` |
+
+\section genproc_diagram Coupling diagram
+
+\dot
+digraph genproc_couplings {
+    rankdir=LR;
+    node [fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    subgraph cluster_genproc {
+        label="GenProc";
+        style=rounded;
+        gen [shape=box, label="gen : Generator"];
+        proc [shape=box, label="proc : JobProcessor"];
+    }
+    in_stop [shape=plaintext, label="stop"];
+    out_out [shape=plaintext, label="out"];
+    in_stop -> gen [label="stop -> stop"];
+    gen -> proc [label="out -> in"];
+    proc -> out_out [label="out -> out"];
+}
+\enddot
+
+\section genproc_sequence Typical interaction
+
+Every `period` the generator emits a job; the processor serves it for
+`processing_time` and forwards it; a `stop` from the environment silences the
+generator. With the defaults (period 2.0, processing_time 1.0) no job is ever
+dropped.
+
+\msc
+    hscale = "1.6";
+    env [label="environment"], gen [label="gen : Generator"], proc [label="proc : JobProcessor"], out [label="GenProc.out"];
+    gen->proc [label="out -> in : Job(k)"];
+    proc->proc [label="busy, ta = processing_time"];
+    proc->out [label="out -> out : Job(k)"];
+    env->gen [label="stop -> stop"];
+    gen->gen [label="passive, ta = inf"];
+\endmsc
+
+\section genproc_source Source mapping
+
+| Element | Implementation in `gen_proc.py` |
+|---|---|
+| Ports | \ref gen_proc.GenProc.stop "GenProc.stop", \ref gen_proc.GenProc.out "GenProc.out" via `addInPort` / `addOutPort` |
+| Components | \ref gen_proc.GenProc.gen "GenProc.gen", \ref gen_proc.GenProc.proc "GenProc.proc" via `addSubModel` |
+| Couplings | three `connectPorts` calls in \ref gen_proc.GenProc.__init__ "GenProc.__init__()" |
+*/
