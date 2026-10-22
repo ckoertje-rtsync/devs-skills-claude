@@ -2,14 +2,15 @@ package examples.volume;
 
 import java.util.HashSet;
 
-import com.ms4systems.devs.paradevs.ParaDevsTree;
-
 /**
  * Paratemporal tree driver for the Volume model.
  *
  * <p>Computes the volume of an n-sphere by enumerating granule combinations
  * for each coordinate dimension and merging equivalent partial-sum states.
  * No Monte Carlo — every branch is enumerated deterministically.
+ *
+ * <p>An instance of this class is the tree container (root + frontier sets);
+ * the static methods build and query it.
  *
  * <p>Mirrors {@code ParaDEVSTreeForVolume} from the reference test suite.
  * See {@code resources/patterns/} for each idiom in the skill repo.
@@ -28,25 +29,27 @@ public class TreeForVolume {
     /** Default expansion depth (number of coordinate dimensions). */
     public static int defaultDepth = 5;
 
-    private TreeForVolume() {
-        // Static utility class
-    }
+    // ------------------------------------------------------------------ //
+    //  Tree container
+    // ------------------------------------------------------------------ //
+
+    public ParaDevsNodeForVolume root;
+    public HashSet<ParaDevsNodeForVolume> leaves    = new HashSet<>();
+    public HashSet<ParaDevsNodeForVolume> interiors = new HashSet<>();
+    public HashSet<ParaDevsNodeForVolume> terminals = new HashSet<>();
 
     // ------------------------------------------------------------------ //
     //  makeTreeToDepth
     // ------------------------------------------------------------------ //
 
-    public static ParaDevsTree makeTreeToDepth(int maxDepth) {
-        ParaDevsTree bt = new ParaDevsTree();
+    public static TreeForVolume makeTreeToDepth(int maxDepth) {
+        TreeForVolume bt = new TreeForVolume();
         ParaDevsNodeForVolume root = new ParaDevsNodeForVolume("root");
         root.level = 0;
         root.pathProb = 1.0;
         root.partialSumSq = 0.0;
         bt.root = root;
-        bt.leaves = new HashSet();
         bt.leaves.add(root);
-        bt.interiors = new HashSet();
-        bt.terminals = new HashSet();
 
         for (int d = 0; d < maxDepth; d++) {
             advanceLeafFront(bt, d);
@@ -58,8 +61,7 @@ public class TreeForVolume {
     //  advanceLeafFront
     // ------------------------------------------------------------------ //
 
-    @SuppressWarnings("unchecked")
-    public static void advanceLeafFront(ParaDevsTree bt, int dim) {
+    public static void advanceLeafFront(TreeForVolume bt, int dim) {
         HashSet<ParaDevsNodeForVolume> newLeaves = new HashSet<>();
 
         double[] reps = new double[numGranules];
@@ -69,8 +71,7 @@ public class TreeForVolume {
             reps[i] = -1.0 + dx * (i + 0.5);
         }
 
-        for (Object o : bt.leaves) {
-            ParaDevsNodeForVolume n = (ParaDevsNodeForVolume) o;
+        for (ParaDevsNodeForVolume n : bt.leaves) {
             bt.interiors.add(n);
 
             for (int i = 0; i < numGranules; i++) {
@@ -117,10 +118,9 @@ public class TreeForVolume {
     // ------------------------------------------------------------------ //
 
     /** Volume estimate = sum of in-sphere leaf pathProbs times hypercube volume 2^n. */
-    public static double computeVolume(ParaDevsTree bt, int dimensions) {
+    public static double computeVolume(TreeForVolume bt, int dimensions) {
         double hitProb = 0.0;
-        for (Object o : bt.leaves) {
-            ParaDevsNodeForVolume n = (ParaDevsNodeForVolume) o;
+        for (ParaDevsNodeForVolume n : bt.leaves) {
             if (n.partialSumSq < 1.0) hitProb += n.pathProb;
         }
         return Math.pow(2.0, dimensions) * hitProb;
@@ -135,7 +135,7 @@ public class TreeForVolume {
         if (args.length > 1) numGranules = Integer.parseInt(args[1]);
 
         long start = System.currentTimeMillis();
-        ParaDevsTree bt = makeTreeToDepth(dims);
+        TreeForVolume bt = makeTreeToDepth(dims);
         long end = System.currentTimeMillis();
 
         double volume = computeVolume(bt, dims);

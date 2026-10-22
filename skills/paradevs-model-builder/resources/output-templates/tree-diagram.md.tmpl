@@ -33,16 +33,23 @@ flowchart TD
 
 ```mermaid
 classDiagram
-    ParaDevsNode <|-- {{NODE_CLASS}}
-    class ParaDevsNode {
-        +Hashtable children
+    {{DRIVER_CLASS}} o-- {{NODE_CLASS}} : root, leaves, interiors, terminals
+    {{NODE_CLASS}} o-- {{NODE_CLASS}} : children
+    class {{DRIVER_CLASS}} {
+        +{{NODE_CLASS}} root
+        +HashSet leaves
+        +HashSet interiors
+        +HashSet terminals
+        +makeTreeToDepth(int)$
+        +advanceLeafFront(tree, int)$
+    }
+    class {{NODE_CLASS}} {
+        +HashMap children
         +String name
         +int level
         +double prob
         +double pathProb
         +boolean terminated
-    }
-    class {{NODE_CLASS}} {
 {{STATE_CLASS_FIELDS}}
         +{{SETBRANCH_NAME}}(...)
     }
@@ -50,7 +57,7 @@ classDiagram
 
 ## Key invariants
 
-- `root.pathProb = 1.0` (override the default `0.0`)
+- `root.pathProb = 1.0`
 - `child.pathProb = parent.pathProb * prob`
 - `equivalent(a, b) implies a.level == b.level`
 - At every layer: `sum(leaf.pathProb for leaf in bt.leaves) + sum(term.pathProb for term in bt.terminals) ≈ 1.0`

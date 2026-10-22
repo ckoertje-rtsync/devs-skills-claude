@@ -24,11 +24,10 @@
      * Log-sum-exp over every node in {@code nodes}; returns
      * {@code log(sum(exp(n.logPathProb)))} without leaving log space.
      */
-    @SuppressWarnings("unchecked")
-    public static double logSumPathProb(java.util.Collection nodes) {
+    public static double logSumPathProb(java.util.Collection<{{NODE_CLASS}}> nodes) {
         double acc = LOG_ZERO;
-        for (Object o : nodes) {
-            acc = logAdd(acc, (({{NODE_CLASS}}) o).logPathProb);
+        for ({{NODE_CLASS}} n : nodes) {
+            acc = logAdd(acc, n.logPathProb);
         }
         return acc;
     }

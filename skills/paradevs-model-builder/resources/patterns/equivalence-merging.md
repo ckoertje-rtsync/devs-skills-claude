@@ -22,9 +22,8 @@ The merged node accumulates `pathProb` (or, in `prob_accumulation = log` mode, `
 Every driver copies essentially the same helper:
 
 ```java
-public static NodeForX equivalentTo(NodeForX leaf, HashSet nodes) {
-    for (Object o : nodes) {
-        NodeForX n = (NodeForX) o;
+public static NodeForX equivalentTo(NodeForX leaf, HashSet<NodeForX> nodes) {
+    for (NodeForX n : nodes) {
         if (equivalent(n, leaf)) return n;
     }
     return null;
@@ -100,7 +99,7 @@ Every reference predicate starts with `s.level == t.level`. This is not optional
 
 You could override `Object.equals` and `Object.hashCode` on the node class and use a `HashSet<Node>` to deduplicate. None of the reference models do this. Reasons:
 
-- The `name` / `key` / `path` fields on `ParaDevsNode` distinguish *identity* from *equivalence*; collapsing them would break debug output.
+- The node's `name` field distinguishes *identity* from *equivalence*; collapsing them would break debug output.
 - Floating-point equality is ill-suited to `equals`/`hashCode` contracts.
 - The O(|newLeaves|) scan is fast enough; there's no speed reason to switch.
 

@@ -1,19 +1,17 @@
-# Pattern: `advanceLeafFront(ParaDevsTree, …)`
+# Pattern: `advanceLeafFront(TreeForX, …)`
 
 **Purpose.** Replace the leaf frontier with the set of next-level children, merging equivalents as we go. This is the inner loop of paratemporal tree expansion — the direct replacement for "pick one Monte Carlo sample and advance it."
 
 ## Canonical skeleton
 
 ```java
-public static void advanceLeafFront(ParaDevsTree bt, /* layer index or params */) {
-    HashSet newLeaves = new HashSet();
+public static void advanceLeafFront(TreeForX bt, /* layer index or params */) {
+    HashSet<NodeForX> newLeaves = new HashSet<>();
     // Optional: per-layer setup (e.g., granule PMF, cue ID, phase dispatcher)
-    for (Object o : bt.leaves) {
-        NodeForX n = (NodeForX) o;
+    for (NodeForX n : bt.leaves) {
         // Optional: bt.interiors.add(n); — if you track interiors
         expandOneParent(n, /* layer params */);           // populates n.children
-        for (Object c : n.children.values()) {
-            NodeForX child = (NodeForX) c;
+        for (NodeForX child : n.children.values()) {
             if (useEquivalence) {
                 NodeForX equiv = equivalentTo(child, newLeaves);
                 if (equiv == null) {
@@ -37,6 +35,8 @@ public static void advanceLeafFront(ParaDevsTree bt, /* layer index or params */
 3. **Swap** — once every parent is processed, replace `bt.leaves` with `newLeaves`. The old leaves have become interiors (tracked explicitly in some drivers, implicitly via the tree shape in others).
 
 ## Reference variants
+
+The reference models take the plugin's `ParaDevsTree`; generated drivers take their own `TreeFor{Domain}` in the same position.
 
 | File | Signature | Layer parameter |
 |------|-----------|-----------------|
@@ -76,6 +76,6 @@ In `prob_accumulation = log` mode the merge is `equiv.logPathProb = logAdd(equiv
 ## Gotchas
 
 - **Do not** mutate `bt.leaves` in place while iterating. The skeleton deliberately accumulates into a separate `newLeaves` set.
-- **Do not** re-use the same child object across branches; each child must be a fresh node so the Hashtable key in `n.children` is unique.
+- **Do not** re-use the same child object across branches; each child must be a fresh node so the key in the `n.children` map is unique.
 - If `useEquivalence = false`, no merging happens — the tree grows by the full branch alphabet every level. Use this only for debugging.
 - Some domains' `expandXxx` helpers (RPO's phase expanders) also decide whether to emit a terminal; make sure the terminal path and the new-leaf path are mutually exclusive.

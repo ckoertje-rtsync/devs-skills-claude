@@ -28,7 +28,7 @@ Product-mode templates are the base. Apply every row below when `prob_accumulati
 | `setBranch*` | `n.pathProb = pathProb * prob;` | `n.logPathProb = logPathProb + Math.log(prob);` **then** `n.pathProb = Math.exp(n.logPathProb);` |
 | `toString` | `pathProb=%.6f` | add `logPathProb=%.4f` |
 
-`Math.log(0.0)` is `−∞`, so a zero-probability branch produces `logPathProb = −∞` and `pathProb = 0.0` with no special casing. The `Math.exp` mirror keeps the inherited `ParaDevsNode.pathProb` field meaningful for debugging and for any reader that only knows the base class; when it underflows to `0.0` the true mass is still in `logPathProb`, which is the field every computation in log mode reads.
+`Math.log(0.0)` is `−∞`, so a zero-probability branch produces `logPathProb = −∞` and `pathProb = 0.0` with no special casing. The `Math.exp` mirror keeps the node's `pathProb` field meaningful for debugging and for any reader that only knows product mode; when it underflows to `0.0` the true mass is still in `logPathProb`, which is the field every computation in log mode reads.
 
 ```java
 public NodeForX setBranchX(String label, /* params */, double prob) {

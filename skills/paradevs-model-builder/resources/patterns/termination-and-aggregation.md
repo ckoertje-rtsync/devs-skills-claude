@@ -4,7 +4,7 @@
 
 ## The `terminated` flag and the `terminals` set
 
-`ParaDevsNode.terminated` (`ParaDevsNode.java:15`) is a `boolean` on every node. `ParaDevsTree.terminals` (`ParaDevsTree.java:20`) is a `HashSet` that collects them.
+`terminated` is a `boolean` bookkeeping field on every generated node. The driver's `terminals` field is a typed `HashSet<NodeForX>` that collects them (see `reference/paradevs-api-cheatsheet.md`).
 
 A node becomes terminal when a domain predicate evaluates true. Typical predicates:
 
@@ -20,8 +20,7 @@ A node becomes terminal when a domain predicate evaluates true. Typical predicat
 In `advanceLeafFront`, branch children into two streams:
 
 ```java
-for (Object c : n.children.values()) {
-    NodeForX child = (NodeForX) c;
+for (NodeForX child : n.children.values()) {
     if (isTerminal(child)) {
         child.terminated = true;
         gt.terminals.add(child);
@@ -52,10 +51,9 @@ Two common shapes:
 ### Scalar aggregate (e.g., volume, hit probability)
 
 ```java
-public static double computeVolume(ParaDevsTree bt) {
+public static double computeVolume(TreeForX bt) {
     double hitProb = 0.0;
-    for (Object o : bt.leaves) {
-        NodeForX n = (NodeForX) o;
+    for (NodeForX n : bt.leaves) {
         if (n.partialSumSq < 1) hitProb += n.pathProb;
     }
     return Math.pow(2.0, numDimensions) * hitProb;
@@ -66,10 +64,9 @@ public static double computeVolume(ParaDevsTree bt) {
 ### Grouping by outcome class (PMF over classifications)
 
 ```java
-public static HashMap<String, HashSet<NodeForX>> splitByClassification(HashSet terminals) {
+public static HashMap<String, HashSet<NodeForX>> splitByClassification(HashSet<NodeForX> terminals) {
     HashMap<String, HashSet<NodeForX>> groups = new HashMap<>();
-    for (Object o : terminals) {
-        NodeForX n = (NodeForX) o;
+    for (NodeForX n : terminals) {
         String cls = n.classificationResult;
         groups.computeIfAbsent(cls, k -> new HashSet<>()).add(n);
     }
@@ -83,10 +80,9 @@ Summing `pathProb` across each group yields the probability of that outcome clas
 ### Convert to PMF entries (Safety)
 
 ```java
-public static List<LeafPMFEntry> terminalsToLeaves(ParaDevsTree gt) {
+public static List<LeafPMFEntry> terminalsToLeaves(TreeForX gt) {
     List<LeafPMFEntry> result = new ArrayList<>();
-    for (Object o : gt.terminals) {
-        NodeForX n = (NodeForX) o;
+    for (NodeForX n : gt.terminals) {
         result.add(new LeafPMFEntry(n.stateKey, n.pathProb, n.evidence));
     }
     return result;

@@ -2,16 +2,17 @@ package {{PACKAGE}};
 
 import java.util.HashMap;
 import java.util.HashSet;
-
-import com.ms4systems.devs.paradevs.ParaDevsTree;
-import com.ms4systems.devs.paradevs.quantized.Quantizer;
-import com.ms4systems.devs.paradevs.quantized.QuantizedOperatorTable;
-import com.ms4systems.devs.paradevs.quantized.ThresholdClassifier;
+import java.util.function.DoubleBinaryOperator;
 {{EXTRA_IMPORTS}}
 
 /**
  * Paratemporal tree driver for the {{DOMAIN}} model with quantized-evidence
  * accumulation and threshold classification at the terminals.
+ *
+ * <p>An instance of this class is the tree container (root + frontier sets);
+ * the static methods build and query it. The quantization helpers
+ * ({@link #quantize}, {@link #representative}, {@link #buildTable},
+ * {@link #labelFor}) are self-contained — no external library.
  *
  * <p>Pattern references:
  *   - resources/patterns/quantized-evidence-integration.md
@@ -29,8 +30,11 @@ public class {{DRIVER_CLASS}} {
     /** Graininess — tune per deployment (embedded: 5-10; simulation: 100+). */
     public static final int G = {{G_VALUE}};
 
-    /** Precomputed homomorphic operator table. {{OPERATOR_COMMENT}} */
-    public static final QuantizedOperatorTable T = {{OPERATOR_FACTORY}};
+    /** Continuous combining operator {@code U : [0,1]² → [0,1]}. {{OPERATOR_COMMENT}} */
+    public static final DoubleBinaryOperator U = (v1, v2) -> {{OPERATOR_LAMBDA}};
+
+    /** Precomputed homomorphic operator table {@code T[i][j] = Q_G(U(r_G(i), r_G(j)))}. */
+    public static final int[][] T = buildTable(G, U);
 
     /** Thresholds in the G-domain. Sorted ascending. */
     public static final int[] THRESHOLDS = {{THRESHOLDS_ARRAY}};
@@ -38,9 +42,9 @@ public class {{DRIVER_CLASS}} {
     /** Action labels; length = THRESHOLDS.length + 1; labels[0] is the default. */
     public static final String[] ACTION_LABELS = {{ACTION_LABELS_ARRAY}};
 
-    /** Highest-exceeded-threshold classifier. */
-    public static final ThresholdClassifier<String> CLASSIFIER =
-            new ThresholdClassifier<>(THRESHOLDS, ACTION_LABELS);
+    static {
+        checkClassifier(THRESHOLDS, ACTION_LABELS);
+    }
 
     /** When true, equivalent children are merged into a single node. */
     public static boolean useEquivalence = true;
@@ -51,26 +55,81 @@ public class {{DRIVER_CLASS}} {
     /** Default expansion depth. */
     public static int defaultDepth = {{DEFAULT_DEPTH}};
 
-    private {{DRIVER_CLASS}}() {
-        // Static utility class
+    // ------------------------------------------------------------------ //
+    //  Tree container
+    // ------------------------------------------------------------------ //
+
+    public {{NODE_CLASS}} root;
+    /** Current BFS frontier; replaced on every {@code advanceLeafFront}. */
+    public HashSet<{{NODE_CLASS}}> leaves    = new HashSet<>();
+    /** Nodes that have been expanded. */
+    public HashSet<{{NODE_CLASS}}> interiors = new HashSet<>();
+    /** Outcome nodes that will not be expanded further. */
+    public HashSet<{{NODE_CLASS}}> terminals = new HashSet<>();
+
+    // ------------------------------------------------------------------ //
+    //  Quantization helpers (EvidenceAppendix.pdf §§A, F.5)
+    // ------------------------------------------------------------------ //
+
+    /** {@code Q_G(x) = min(G-1, floor(G*x))}, with {@code x} clamped to {@code [0,1]}. */
+    public static int quantize(double x, int G) {
+        if (x <= 0.0) return 0;
+        if (x >= 1.0) return G - 1;
+        return Math.min(G - 1, (int) Math.floor(G * x));
+    }
+
+    /**
+     * Bin-center representative {@code r_G(k) = (k + 0.5) / G}. Not the same
+     * as the linear {@code k / (G-1)} used when porting thresholds across G.
+     */
+    public static double representative(int k, int G) {
+        return (k + 0.5) / G;
+    }
+
+    /** Homomorphic operator table {@code T[i][j] = Q_G(U(r_G(i), r_G(j)))}. */
+    public static int[][] buildTable(int G, DoubleBinaryOperator U) {
+        int[][] t = new int[G][G];
+        for (int i = 0; i < G; i++) {
+            for (int j = 0; j < G; j++) {
+                t[i][j] = quantize(U.applyAsDouble(representative(i, G), representative(j, G)), G);
+            }
+        }
+        return t;
+    }
+
+    /** Highest-exceeded-threshold rule; {@code ACTION_LABELS[0]} when none is exceeded. */
+    public static String labelFor(int k) {
+        for (int i = THRESHOLDS.length - 1; i >= 0; i--) {
+            if (THRESHOLDS[i] <= k) return ACTION_LABELS[i + 1];
+        }
+        return ACTION_LABELS[0];
+    }
+
+    /** Fails class load on a label/threshold length mismatch or unsorted thresholds. */
+    static void checkClassifier(int[] thresholds, String[] labels) {
+        if (labels.length != thresholds.length + 1) {
+            throw new IllegalStateException("ACTION_LABELS.length must be THRESHOLDS.length + 1");
+        }
+        for (int i = 1; i < thresholds.length; i++) {
+            if (thresholds[i] <= thresholds[i - 1]) {
+                throw new IllegalStateException("THRESHOLDS must be strictly ascending at i=" + i);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ //
     //  makeTreeToDepth
     // ------------------------------------------------------------------ //
 
-    public static ParaDevsTree makeTreeToDepth(int maxDepth) {
-        ParaDevsTree bt = new ParaDevsTree();
+    public static {{DRIVER_CLASS}} makeTreeToDepth(int maxDepth) {
+        {{DRIVER_CLASS}} bt = new {{DRIVER_CLASS}}();
         {{NODE_CLASS}} root = new {{NODE_CLASS}}("root", G);
         root.level = 0;
         root.pathProb = 1.0;
         if (useHistogram) root.histogram = new int[G];
 {{ROOT_INIT}}
         bt.root = root;
-        bt.leaves = new HashSet();
         bt.leaves.add(root);
-        bt.interiors = new HashSet();
-        bt.terminals = new HashSet();
 
         for (int d = 0; d < maxDepth; d++) {
             advanceLeafFront(bt, d);
@@ -90,13 +149,11 @@ public class {{DRIVER_CLASS}} {
      * levels; replace {@link #evidenceProbs(int)} with domain-specific
      * distributions when appropriate.
      */
-    @SuppressWarnings("unchecked")
-    public static void advanceLeafFront(ParaDevsTree bt, int layer) {
+    public static void advanceLeafFront({{DRIVER_CLASS}} bt, int layer) {
         HashSet<{{NODE_CLASS}}> newLeaves = new HashSet<>();
         double[] probs = evidenceProbs(layer);
 
-        for (Object o : bt.leaves) {
-            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+        for ({{NODE_CLASS}} n : bt.leaves) {
             bt.interiors.add(n);
 
             for (int levelIn = 0; levelIn < G; levelIn++) {
@@ -151,14 +208,13 @@ public class {{DRIVER_CLASS}} {
 
     /**
      * Sum {@code pathProb} across every leaf grouped by the action label
-     * returned by {@link #CLASSIFIER}.
+     * returned by {@link #labelFor(int)}.
      */
-    public static HashMap<String, Double> actionPMF(ParaDevsTree bt) {
+    public static HashMap<String, Double> actionPMF({{DRIVER_CLASS}} bt) {
         HashMap<String, Double> pmf = new HashMap<>();
         for (String lbl : ACTION_LABELS) pmf.put(lbl, 0.0);
-        for (Object o : bt.leaves) {
-            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
-            String action = CLASSIFIER.labelFor(n.evidenceLevel);
+        for ({{NODE_CLASS}} n : bt.leaves) {
+            String action = labelFor(n.evidenceLevel);
             pmf.merge(action, n.pathProb, Double::sum);
         }
         return pmf;
@@ -171,12 +227,8 @@ public class {{DRIVER_CLASS}} {
     public static void main(String[] args) {
         int depth = (args.length > 0) ? Integer.parseInt(args[0]) : defaultDepth;
 
-        // Sanity check: the table is really a homomorphic image of U.
-        assert T.verifyHomomorphism((v1, v2) -> {{OPERATOR_LAMBDA}}, 1)
-                : "QuantizedOperatorTable failed homomorphism check";
-
         long start = System.currentTimeMillis();
-        ParaDevsTree bt = makeTreeToDepth(depth);
+        {{DRIVER_CLASS}} bt = makeTreeToDepth(depth);
         long end = System.currentTimeMillis();
 
         HashMap<String, Double> pmf = actionPMF(bt);

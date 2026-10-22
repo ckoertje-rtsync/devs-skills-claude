@@ -1,7 +1,6 @@
 package examples.volume;
 
-import com.ms4systems.devs.core.model.impl.Coupled;
-import com.ms4systems.devs.paradevs.ParaDevsNode;
+import java.util.HashMap;
 
 /**
  * Paratemporal tree node for the Volume model (n-sphere volume by granule
@@ -13,19 +12,28 @@ import com.ms4systems.devs.paradevs.ParaDevsNode;
  * far; the termination predicate {@code partialSumSq > 1.0} identifies points
  * outside the unit sphere and can be early-eliminated during expansion.
  */
-public class ParaDevsNodeForVolume extends ParaDevsNode {
+public class ParaDevsNodeForVolume {
+
+    // ------------------------------------------------------------------ //
+    //  Tree bookkeeping
+    // ------------------------------------------------------------------ //
+
+    public final HashMap<String, ParaDevsNodeForVolume> children = new HashMap<>();
+    public String  name;
+    public int     level;
+    public double  prob = 1.0;
+    public double  pathProb = 1.0;
+    public boolean terminated;
+
+    // ------------------------------------------------------------------ //
+    //  Domain state
+    // ------------------------------------------------------------------ //
 
     public double partialSumSq;
 
     public ParaDevsNodeForVolume(String nm) {
         name = nm;
-        pathProb = 1.0;
         partialSumSq = 0.0;
-    }
-
-    public ParaDevsNodeForVolume(String nm, Coupled cm) {
-        this(nm);
-        this.cm = cm;
     }
 
     /**

@@ -1,6 +1,6 @@
 # Pattern: `setBranch*()` — state snapshot on a child node
 
-**Purpose.** Create one child node, install it in the parent's `children` Hashtable, and snapshot parent state into the child with exactly the fields that change on this branch mutated. Every reference node class exposes one or more `setBranch*()` overloads — this is where domain semantics enter the tree.
+**Purpose.** Create one child node, install it in the parent's `children` map, and snapshot parent state into the child with exactly the fields that change on this branch mutated. Every reference node class exposes one or more `setBranch*()` overloads — this is where domain semantics enter the tree.
 
 ## The shape every `setBranch` must follow
 
@@ -26,7 +26,7 @@ Steps 1–5 are **invariant across every paratemporal model**. Steps 6–7 are w
 
 | File | Signature | What changes |
 |------|-----------|--------------|
-| `ParaDevsNode.java:35` | `setBranch(String label, double prob)` | Base class — no domain state; only level/prob/pathProb/children. |
+| `ParaDevsNode.java:35` (plugin base class) | `setBranch(String label, double prob)` | Steps 1–5 only — no domain state. Generated nodes inline these fields instead of extending it. |
 | `ParaDEVSNodeForVolume.java:15` | `setBranchDim(int dim, double rep, double prob)` | Adds one coordinate; `n.partialSumSq = this.partialSumSq + rep*rep`. |
 | `ParaDEVSNodeForEngagement.java:32–122` | 7 overloads (`setBranch`, `setBranch(s, shots, hits, prob)`, …) | Different fields mutate per overload (shots, hits, sspk, engagement status). |
 | `ParaDEVSNodeForRPO.java:97,131,170,201,239,274` | `setBranchDetection`, `setBranchTracking`, `setBranchClassification`, `setBranchProximity`, `setBranchResponse`, `setBranch` | Phase-specific branching — each overload mutates the phase's state variables. |
@@ -53,7 +53,7 @@ Keep labels ASCII-safe — they flow into Mermaid diagrams and file names via `n
 
 `pathProb = parentPathProb × branchProb` must hold every time. Two common failure modes:
 
-- Forgetting to multiply (`n.pathProb = prob` instead of `pathProb * prob`). The tree root must then be initialized with `pathProb = 1.0`, not `0.0` (the `ParaDevsNode` default).
+- Forgetting to multiply (`n.pathProb = prob` instead of `pathProb * prob`). The tree root must be `pathProb = 1.0` (the generated node's field default), never `0.0` — watch for this when converting legacy code, whose plugin base class defaulted `pathProb` to `0.0`.
 - Using cumulative `prob` on both sides (`n.pathProb = pathProb + prob`). Additive accumulation is wrong for statistically independent branches.
 
 When the model was approved with `prob_accumulation = log`, step 5 becomes `n.logPathProb = logPathProb + Math.log(prob);` followed by `n.pathProb = Math.exp(n.logPathProb);`. See `log-space-accumulation.md` for the full substitution table.

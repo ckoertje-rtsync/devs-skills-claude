@@ -32,7 +32,7 @@ if (episode == 1) {
 
 - **Episode 1 gives the full prior PMF** over outcomes — a one-shot prediction across every branch combination.
 - **Later episodes update incrementally** as new evidence arrives. There's no need to re-expand layers the user has already observed; only the *next* unobserved cue matters.
-- The same data structure (`ParaDevsTree` + `ParaDevsNodeForSafety`) is used for both modes — only the expansion loop changes.
+- The same data structure (`TreeForSafety` + `ParaDevsNodeForSafety`) is used for both modes — only the expansion loop changes.
 
 ## Helpers in `ExpansionUtils`
 

@@ -1,6 +1,6 @@
 ---
 name: paradevs-model-builder
-description: "Generate a compilable Paratemporal DEVS (ParaDEVS) Java model from a description, background document, or existing source. Produces a domain-specific ParaDevsNode subclass plus a TreeFor{Domain} driver class holding makeTreeToDepth / advanceLeafFront / equivalent / equivalentTo and an optional main() harness — the breadth-first tree-expansion replacement for Monte Carlo sampling. Detects evidence-scored domains and offers to wire in the generic com.ms4systems.devs.paradevs.quantized package (Quantizer, QuantizedOperatorTable, GDomainConverter, ThresholdClassifier). Surfaces a design summary, an equivalence-predicate menu, and a probability-accumulation choice (product or log-space for deep / rare-event trees) for explicit user approval, then drafts and javac-validates the model. Use when you need a paratemporal tree builder in the style of the Volume / AirBattle / RPO / Safety references — not a full DEVS simulator."
+description: "Generate a compilable Paratemporal DEVS (ParaDEVS) Java model from a description, background document, or existing source. Produces a self-contained ParaDevsNodeFor{Domain} node class plus a TreeFor{Domain} tree/driver class holding makeTreeToDepth / advanceLeafFront / equivalent / equivalentTo and an optional main() harness — the breadth-first tree-expansion replacement for Monte Carlo sampling. Output is plain Java with no external dependencies. Detects evidence-scored domains and offers to wire in inline quantized-evidence helpers (quantizer, homomorphic operator table, threshold classifier). Surfaces a design summary, an equivalence-predicate menu, and a probability-accumulation choice (product or log-space for deep / rare-event trees) for explicit user approval, then drafts and javac-validates the model. Use when you need a paratemporal tree builder in the style of the Volume / AirBattle / RPO / Safety references — not a full DEVS simulator."
 ---
 
 # paradevs-model-builder
@@ -9,17 +9,19 @@ description: "Generate a compilable Paratemporal DEVS (ParaDEVS) Java model from
 
 Takes a description and/or supporting artifacts (prompt text, Markdown/TXT files, PDFs in `docs/paradevs/`, or predefined Java source to convert) and produces a compilable Paratemporal DEVS tree-expansion module:
 
-1. a **node class** `ParaDevsNodeFor{Domain} extends ParaDevsNode` carrying domain state and one or more `setBranch*()` methods; and
-2. a **tree driver class** `TreeFor{Domain}` holding static `makeTreeToDepth` / `advanceLeafFront` / `equivalent` / `equivalentTo` (and, optionally, aggregation helpers and a `main()` harness).
+1. a **node class** `ParaDevsNodeFor{Domain}` carrying its own tree bookkeeping (`children`, `name`, `level`, `prob`, `pathProb`, `terminated`), the domain state, and one or more `setBranch*()` methods; and
+2. a **tree class** `TreeFor{Domain}` that is both the tree container (typed `root` / `leaves` / `interiors` / `terminals`) and the driver, holding static `makeTreeToDepth` / `advanceLeafFront` / `equivalent` / `equivalentTo` (and, optionally, aggregation helpers and a `main()` harness).
 
 Plus a Mermaid tree-and-call-graph diagram and a one-page README.
+
+Generated code is **plain Java with no external dependencies** — no base class, no Closure-DEVS or paradevs-plugin classpath. It compiles with bare `javac`.
 
 The skill replaces Monte Carlo simulation with breadth-first tree expansion: every stochastic choice is enumerated instead of sampled; equivalent states are merged so the tree stays polynomial instead of exponential. This is the core idiom from `docs/paradevs/` (Zeigler et al. 2024, Systems 2024, and the Evidence Appendix) and from the reference models at `~/DEVS/paradevs/Closure-DEVS-paradevs-plugin/test/Models/java/reference/`.
 
 Two template families are supported and the user is **always asked** which fits:
 
 - **Non-evidence** (default) — plain tree expansion over domain state. Matches Volume / AirBattle / RPO style.
-- **Evidence-integrated** — wires the generic `com.ms4systems.devs.paradevs.quantized.*` package (`Quantizer`, `QuantizedOperatorTable`, `GDomainConverter`, `ThresholdClassifier`) for evidence-scored domains. Matches Safety style with `EvidenceAppendix.pdf` quantization.
+- **Evidence-integrated** — adds inline quantization helpers to the driver (`quantize`, `representative`, a `G×G` operator table `T` built from `U`, `labelFor` threshold classification) for evidence-scored domains. Matches Safety style with `EvidenceAppendix.pdf` quantization.
 
 The skill narrows scope to the node+driver pair. Wrapping the expander in a Closure-DEVS Atomic (à la `Severity_ParaDEVS` in the treeexpander reference) is out of scope — pair with `closure-devs-atomic` for that layer.
 
@@ -47,7 +49,7 @@ stateDiagram-v2
 - Plain-text description in the prompt.
 - Markdown or plain-text files (e.g. output of `devs-model-outline`).
 - PDF documents in `docs/paradevs/` (read via the `Read` tool) — especially the Evidence Appendix when the domain mentions evidence scoring.
-- Predefined source code the user wants converted into a paratemporal builder. When this is the input, identify the Monte Carlo sampling site(s) in the legacy code — those are the branch points for the tree expander.
+- Predefined source code the user wants converted into a paratemporal builder. When this is the input, identify the Monte Carlo sampling site(s) in the legacy code — those are the branch points for the tree expander. If the legacy code extends the plugin's `ParaDevsNode` or uses `ParaDevsTree` / `quantized.*`, fold those into the self-contained shape (see `resources/reference/paradevs-api-cheatsheet.md`, Gotchas).
 
 **Extract into a draft Paratemporal Model Context:**
 
@@ -108,7 +110,7 @@ Then ask (using `AskUserQuestion`, single turn):
    - **tolerance** (continuous accumulators; follow-up: which fields, which ε)
    - **histogram** (multiset of quantized levels — symmetry-merging; requires evidence integration)
 
-2. **Quantized-evidence integration** (only when Stage 1 flagged the signal): *"This looks like a candidate for `com.ms4systems.devs.paradevs.quantized`. Wire it in (imports + `QuantizedOperatorTable.forProbabilisticSum(G)` + `ThresholdClassifier<String>` + histogram equivalence)?"* — **yes / no / no-but-cite-in-README**. When answered **yes**, also confirm `G`, the binary operator `U`, the threshold vector, and the action-label vector.
+2. **Quantized-evidence integration** (only when Stage 1 flagged the signal): *"This looks like a candidate for quantized-evidence integration. Wire it in (inline `quantize` + operator table `T` built from `U` + `labelFor` threshold classifier + histogram equivalence)?"* — **yes / no / no-but-cite-in-README**. When answered **yes**, also confirm `G`, the binary operator `U`, the threshold vector, and the action-label vector.
 
 3. **Probability accumulation** — **product** (default) or **log-space**. Recommend `log` only when Stage 1 raised the underflow signal; otherwise recommend `product` and state why (shallow tree, moderate branch probabilities, line-for-line match with the references).
 
@@ -153,15 +155,12 @@ Three checks, run in order; one self-repair pass allowed.
 **4a. Java compile.**
 
 ```bash
-export CLOSURE_DEVS_JAR=${CLOSURE_DEVS_JAR:-$HOME/.m2/repository/com/ms4systems/Closure-DEVS/1.0.0/Closure-DEVS-1.0.0.jar}
-export PARADEVS_SRC=${PARADEVS_SRC:-$HOME/DEVS/paradevs/Closure-DEVS-paradevs-plugin/src}
-
-javac -cp "$CLOSURE_DEVS_JAR:$PARADEVS_SRC" \
+javac -d /tmp/paradevs-model-builder-{domain}/out \
       /tmp/paradevs-model-builder-{domain}/{NodeClass}.java \
       /tmp/paradevs-model-builder-{domain}/{DriverClass}.java
 ```
 
-If `PARADEVS_SRC` isn't available but a `PARADEVS_JAR` is set (a compiled plugin JAR), substitute it in the classpath. Both env vars may be overridden from the prompt.
+No classpath — generated code depends only on the JDK. An `import` of `com.ms4systems.*` in the draft is a template-filling error; remove it during self-repair.
 
 **4b. Mermaid render.**
 
@@ -198,19 +197,17 @@ Show the resolved path to the user *before* writing. Move the four files from th
 
 ## Prerequisites
 
-- `javac` on PATH (OpenJDK or Oracle JDK 8+).
-- The Closure-DEVS JAR available at `~/.m2/repository/com/ms4systems/Closure-DEVS/1.0.0/Closure-DEVS-1.0.0.jar`, OR an alternate path passed in the prompt, OR the `CLOSURE_DEVS_JAR` env var.
-- The paradevs plugin source available at `~/DEVS/paradevs/Closure-DEVS-paradevs-plugin/src`, OR an alternate path passed in the prompt, OR the `PARADEVS_SRC` / `PARADEVS_JAR` env var. Required because generated code imports `com.ms4systems.devs.paradevs.*` and (optionally) `com.ms4systems.devs.paradevs.quantized.*`.
+- `javac` on PATH (OpenJDK or Oracle JDK 8+). Nothing else — generated code has no library dependencies.
 - `node` and `npx` on PATH (Node.js 18+). The VALIDATE stage invokes `mmdc` via `npx --yes --package=@mermaid-js/mermaid-cli@latest`, which auto-installs on first use. No global install required.
 
 ## Reference Library
 
 | Path under `resources/` | Purpose |
 |---|---|
-| `templates/paradevs-node.java.tmpl` | Non-evidence node skeleton — extends `ParaDevsNode`, domain state fields, `setBranch*` method |
-| `templates/paradevs-tree-driver.java.tmpl` | Non-evidence driver skeleton — `makeTreeToDepth`, `advanceLeafFront`, `equivalent`, optional `main()` |
-| `templates/paradevs-node-evidence.java.tmpl` | Evidence-integrated node — carries `evidenceLevel`, optional `histogram[]`, `setBranchEvidence` using `QuantizedOperatorTable.lookup` |
-| `templates/paradevs-tree-driver-evidence.java.tmpl` | Evidence-integrated driver — static `G`, `T`, `THRESHOLDS`, `ACTION_LABELS`, `ThresholdClassifier`, `actionPMF` |
+| `templates/paradevs-node.java.tmpl` | Non-evidence node skeleton — tree bookkeeping fields, domain state fields, `setBranch*` method |
+| `templates/paradevs-tree-driver.java.tmpl` | Non-evidence tree container + driver skeleton — typed frontier sets, `makeTreeToDepth`, `advanceLeafFront`, `equivalent`, optional `main()` |
+| `templates/paradevs-node-evidence.java.tmpl` | Evidence-integrated node — carries `evidenceLevel`, optional `histogram[]`, `setBranchEvidence` using the table lookup `T[i][j]` |
+| `templates/paradevs-tree-driver-evidence.java.tmpl` | Evidence-integrated tree container + driver — static `G`, `U`, `T`, `THRESHOLDS`, `ACTION_LABELS`, inline `quantize` / `buildTable` / `labelFor`, `actionPMF` |
 | `templates/equivalent-exact.java.frag` | Equivalence predicate: exact state match |
 | `templates/equivalent-tolerance.java.frag` | Equivalence predicate: tolerance on continuous field(s) |
 | `templates/equivalent-histogram.java.frag` | Equivalence predicate: multiset (symmetry-merging) |
@@ -221,10 +218,10 @@ Show the resolved path to the user *before* writing. Move the four files from th
 | `patterns/equivalence-merging.md` | Three predicate flavors + `equivalentTo` scan helper |
 | `patterns/termination-and-aggregation.md` | Terminal moves, scalar aggregates, grouping helpers |
 | `patterns/log-space-accumulation.md` | Opt-in `logPathProb` / log-sum-exp substitutions for deep or rare-event trees |
-| `patterns/quantized-evidence-integration.md` | Wiring `Quantizer` / `QuantizedOperatorTable` / `GDomainConverter` / `ThresholdClassifier` into node+driver |
+| `patterns/quantized-evidence-integration.md` | Wiring the inline quantization helpers (quantize, operator table, threshold classifier, optional G-porting) into node+driver |
 | `patterns/episode-aware-expansion.md` | Full-BFS vs single-layer expansion for adaptive / replanning models |
-| `reference/paradevs-api-cheatsheet.md` | `ParaDevsNode` + `ParaDevsTree` public fields and methods |
-| `reference/quantized-package-cheatsheet.md` | `Quantizer` / `QuantizedOperatorTable` / `GDomainConverter` / `ThresholdClassifier` public API |
+| `reference/paradevs-api-cheatsheet.md` | Generated node bookkeeping fields + tree container / driver API, and legacy-conversion notes |
+| `reference/quantized-helpers-cheatsheet.md` | Inline quantization helpers: `quantize`, `representative`, `buildTable`, `labelFor`, `checkClassifier`, optional `convertLevel` |
 | `reference/reference-models-index.md` | Volume / AirBattle / RPO / Safety summary with file:line index |
 | `reference/mermaid-label-safety.md` | Portability rules for Mermaid labels (ASCII, no `;`, no `:=`) |
 | `output-templates/tree-diagram.md.tmpl` | Mermaid tree-expansion + call-graph scaffold |
@@ -237,7 +234,7 @@ Show the resolved path to the user *before* writing. Move the four files from th
 
 The skill runs end-to-end with stock Claude Code tools (`Read`, `Write`, `Bash`, and the `AskUserQuestion` interactive prompt) plus a local `javac` and `npx` (for `mmdc`-based Mermaid validation; auto-installs on first use). It does **not** depend on AgentDB, `mcp__claude-flow__*` tools, or any swarm coordination. If your environment has those configured, they can be layered on externally (e.g., for pattern persistence) — but they are not part of the documented workflow.
 
-The generated code imports `com.ms4systems.devs.paradevs.*` and (optionally) the `.quantized.*` sub-package. These live in the `Closure-DEVS-paradevs-plugin` source tree, not in a Maven-published JAR. The Stage 4 validator compiles against the source directory directly (`$PARADEVS_SRC`) or a packaged JAR (`$PARADEVS_JAR`) — honor whichever the user has set.
+The generated code imports only `java.*` classes. It does not depend on the `com.ms4systems.devs.paradevs` plugin package or on the Closure-DEVS JAR; the reference models under `~/DEVS/paradevs/` are optional reading for idioms, not a build input.
 
 ## Related skills
 

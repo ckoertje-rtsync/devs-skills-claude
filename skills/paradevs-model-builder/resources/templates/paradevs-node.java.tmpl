@@ -1,7 +1,6 @@
 package {{PACKAGE}};
 
-import com.ms4systems.devs.core.model.impl.Coupled;
-import com.ms4systems.devs.paradevs.ParaDevsNode;
+import java.util.HashMap;
 {{EXTRA_IMPORTS}}
 
 /**
@@ -13,9 +12,24 @@ import com.ms4systems.devs.paradevs.ParaDevsNode;
  *
  * <p>Pattern references:
  *   - resources/patterns/set-branch-state-snapshot.md
- *   - resources/reference/paradevs-api-cheatsheet.md (ParaDevsNode fields)
+ *   - resources/reference/paradevs-api-cheatsheet.md (node bookkeeping fields)
  */
-public class {{NODE_CLASS}} extends ParaDevsNode {
+public class {{NODE_CLASS}} {
+
+    // ------------------------------------------------------------------ //
+    //  Tree bookkeeping
+    // ------------------------------------------------------------------ //
+
+    /** Branch label → child node. */
+    public final HashMap<String, {{NODE_CLASS}}> children = new HashMap<>();
+    public String  name;
+    public int     level;
+    /** Single-branch probability {@code Pr(branch | parent)}. */
+    public double  prob = 1.0;
+    /** Cumulative probability from the root; {@code parent.pathProb * prob}. */
+    public double  pathProb = 1.0;
+    /** Terminal outcome — do not expand further. */
+    public boolean terminated;
 
     // ------------------------------------------------------------------ //
     //  Domain state
@@ -29,13 +43,7 @@ public class {{NODE_CLASS}} extends ParaDevsNode {
 
     public {{NODE_CLASS}}(String nm) {
         name = nm;
-        pathProb = 1.0;
 {{STATE_INIT}}
-    }
-
-    public {{NODE_CLASS}}(String nm, Coupled cm) {
-        this(nm);
-        this.cm = cm;
     }
 
     // ------------------------------------------------------------------ //
@@ -46,7 +54,7 @@ public class {{NODE_CLASS}} extends ParaDevsNode {
      * Creates a child node for branch {{BRANCH_DESCRIPTION}}.
      *
      * <p>Snapshots parent state, applies the branch delta, and installs the
-     * child in the {@code children} Hashtable.
+     * child in the {@code children} map.
      *
      * @param label branch label (becomes suffix on the child's name and key in {@code children})
 {{SETBRANCH_PARAM_DOCS}}

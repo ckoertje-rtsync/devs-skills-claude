@@ -76,12 +76,12 @@ The skill's Stage 1 DISCOVER classifies the described model into one of four buc
 | Single continuous accumulator, fixed depth | Volume | non-evidence, tolerance equivalence |
 | Multi-field branching, multiple `setBranch` shapes | Engagement | non-evidence, hybrid equivalence |
 | Sequential phases, one per depth level | RPO | non-evidence, hybrid equivalence |
-| Evidence accumulator + thresholds + labels | Safety + `quantized/*` | **evidence-integrated**, histogram equivalence |
+| Evidence accumulator + thresholds + labels | Safety + quantized helpers | **evidence-integrated**, histogram equivalence |
 | Adaptive/replanning expansion | Safety | non-evidence (or evidence), episode-aware |
 
 ## Naming convention
 
-- Node class: `NodeForX` or `ParaDevsNodeForX` (capitalization varies across references — Volume uses `ParaDEVSNodeForVolume`, Safety uses `ParaDevsNodeForSafety`). The skill defaults to **`ParaDevsNodeFor{Domain}`** (camelCase after `Devs`, matching the Safety reference and the base class's own casing).
+- Node class: `NodeForX` or `ParaDevsNodeForX` (capitalization varies across references — Volume uses `ParaDEVSNodeForVolume`, Safety uses `ParaDevsNodeForSafety`). The skill defaults to **`ParaDevsNodeFor{Domain}`** (camelCase after `Devs`, matching the Safety reference). The generated node is self-contained; it does not extend the plugin's `ParaDevsNode`.
 - Driver class: `TreeFor{Domain}` (like `ParaDEVSTreeForVolume`) or `Run{Domain}` (like `RunRPO`, `RunEngagement`, `RunSafetyExpansion`). The skill defaults to **`TreeFor{Domain}`** because the user explicitly referred to "a Tree class with the driver methods."
 
 ## Licensing / attribution

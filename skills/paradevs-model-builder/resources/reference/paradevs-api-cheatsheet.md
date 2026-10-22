@@ -1,45 +1,45 @@
-# `com.ms4systems.devs.paradevs` API cheatsheet
+# Generated node + tree API cheatsheet
 
-Base classes generated models depend on. Source: `~/DEVS/paradevs/Closure-DEVS-paradevs-plugin/src/com/ms4systems/devs/paradevs/`.
+Generated code is **self-contained plain Java** — no base class, no external library, no classpath. The node class carries its own tree bookkeeping fields; the driver class doubles as the tree container. This page is the contract both templates implement.
 
-## `ParaDevsNode` (`ParaDevsNode.java`)
+The shape mirrors the `ParaDevsNode` / `ParaDevsTree` pair from the Closure-DEVS paradevs plugin that the reference models extend (see `reference-models-index.md`), minus the parts the tree-expansion idiom never uses.
 
-Base class for every paratemporal tree node. Domain-specific nodes extend this.
+## Node class `ParaDevsNodeFor{Domain}`
 
-### Public fields
+### Bookkeeping fields
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `children` | `Hashtable` | `new Hashtable()` | Map from branch label → child node. Keys are typically `String` labels. |
-| `key` | `String` | `null` | Optional secondary identifier (rarely used by drivers). |
-| `name` | `String` | `null` | Human-readable node name; set in constructor. Children's names are `parent.name + label`. |
-| `level` | `int` | `0` | Depth from root. Set in `setBranch` as `level = parent.level + 1`. |
+| `children` | `HashMap<String, ParaDevsNodeFor{Domain}>` | empty, `final` | Branch label → child node. Filled by `setBranch*`. |
+| `name` | `String` | set in constructor | Human-readable node name. Children's names are `parent.name + label`. |
+| `level` | `int` | `0` | Depth from root. Set in `setBranch*` as `level = parent.level + 1`. |
 | `prob` | `double` | `1.0` | Single-branch probability `Pr(branch \| parent)`. |
-| `pathProb` | `double` | `0.0` | Cumulative probability from root, `parent.pathProb × prob`. **Must** be explicitly set to `1.0` on the root. The base class has no log-space field; skill-generated nodes add `logPathProb` themselves when `prob_accumulation = log` (see `patterns/log-space-accumulation.md`). |
+| `pathProb` | `double` | `1.0` | Cumulative probability from root, `parent.pathProb × prob`. The default is `1.0`, so a root built with the plain constructor is already correct; drivers still set it explicitly for readability. Nodes add `logPathProb` when `prob_accumulation = log` (see `patterns/log-space-accumulation.md`). |
 | `terminated` | `boolean` | `false` | Marks the node as a terminal outcome (do not expand further). |
-| `path` | `String` | `""` | Optional concatenated branch label trace. |
-| `cm` | `Coupled` | `null` | Optional reference to a Closure-DEVS Coupled model — used when later wiring the tree into a DEVS simulator. Leave `null` for offline tree construction. |
 
-### Public methods
+Domain state fields follow the bookkeeping block.
 
-| Signature | Line | Purpose |
-|-----------|------|---------|
-| `ParaDevsNode()` | 21 | No-op constructor. |
-| `ParaDevsNode(String nm)` | 23 | Name only. |
-| `ParaDevsNode(String nm, Coupled cm)` | 27 | Name + Coupled reference. |
-| `ParaDevsNode(String name, int i)` | 32 | Stub (unused in references). |
-| `ParaDevsNode setBranch(String label, double prob)` | 35 | Base-class branch — creates child, installs in `children`, sets `level`, `prob`, `pathProb`. Domain nodes override with their own `setBranchXxx` that also snapshots domain state. |
-| `void replaceNodeWithEquiv(ParaDevsNode leaf, ParaDevsNode equiv)` | 44 | Swap child entry — used by merge routines (rarely called directly by drivers). |
-| `String toString()` | 51 | Default debug format `GeneralNode{name,N,pathProb,P,level,L}`. Override in domain nodes. |
+### Methods
 
-### Convention: extending `ParaDevsNode`
+| Signature | Purpose |
+|-----------|---------|
+| `ParaDevsNodeFor{Domain}(String nm)` | Name + domain-state defaults. The evidence variant takes `(String nm, int G)`. |
+| `ParaDevsNodeFor{Domain} setBranch{X}(String label, /* branch params */, double prob)` | Creates the child, installs it in `children`, sets `level` / `prob` / `pathProb`, copies and mutates domain state. One overload per branch shape. |
+| `String toString()` | Debug format including domain fields. |
+
+### Convention
 
 ```java
-public class NodeForX extends ParaDevsNode {
+public class NodeForX {
+    public final HashMap<String, NodeForX> children = new HashMap<>();
+    public String  name;
+    public int     level;
+    public double  prob = 1.0;
+    public double  pathProb = 1.0;
+    public boolean terminated;
+
     // domain fields
     public double partialSumSq;
-    public int    phase;
-    // …
 
     public NodeForX(String nm) { name = nm; }
 
@@ -57,64 +57,43 @@ public class NodeForX extends ParaDevsNode {
 }
 ```
 
-Reference implementations: `ParaDEVSNodeForVolume.java`, `ParaDevsNodeForSafety.java`, `ParaDEVSNodeForEngagement.java`, `ParaDEVSNodeForRPO.java`.
+## Driver class `TreeFor{Domain}` (also the tree container)
 
-## `ParaDevsTree` (`ParaDevsTree.java`)
-
-Container for a paratemporal tree.
-
-### Public fields
+### Instance fields
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `root` | `ParaDevsNode` | a placeholder `ParaDevsNode("0", 0)` | Tree root. Drivers **must** overwrite with their domain node. |
-| `leaves` | `HashSet` | `new HashSet()` | Current BFS frontier. Replaced every iteration of `advanceLeafFront`. |
-| `interiors` | `HashSet` | `new HashSet()` | Optional record of non-frontier, non-terminal nodes. |
-| `terminals` | `HashSet` | `new HashSet()` | Outcome nodes that will not be expanded further. |
-| `useEquivalence` | `boolean` | `false` | Not consulted by the library itself — driver classes read their own static flag. Present as a field for potential future use. |
+| `root` | `ParaDevsNodeFor{Domain}` | `null` | Tree root; set by `makeTreeToDepth`. |
+| `leaves` | `HashSet<ParaDevsNodeFor{Domain}>` | empty | Current BFS frontier. Replaced every iteration of `advanceLeafFront`. |
+| `interiors` | `HashSet<ParaDevsNodeFor{Domain}>` | empty | Nodes that have been expanded. |
+| `terminals` | `HashSet<ParaDevsNodeFor{Domain}>` | empty | Outcome nodes that will not be expanded further. |
 
-### Public methods
+All three sets are typed — iterate them directly with no casts.
 
-| Signature | Line | Purpose |
-|-----------|------|---------|
-| `ParaDevsTree()` | 29 | Empty tree; installs a `ParaDevsNode` root with `level=0`. |
-| `ParaDevsTree(String[] labels, double[] probs)` | 34 | Tree with a first-layer fan-out via the base-class `setBranch`. |
-| `static ParaDevsTree makeGeneralTree(String[] labels, double[] probs)` | 43 | Static factory for the two-arg constructor. |
-| `int getDepth()` | 47 | Recursive depth of the tree from `root`. |
-| `int getDepth(ParaDevsNode n)` | 51 | Depth below a given node. |
-| `static void print(ParaDevsTree bt)` | 69 | Debug print, level-by-level. |
-| `static void printNextLevel(ParaDevsTree gt, HashSet hs, int d)` | 76 | Helper called by `print`. |
-| `String selectFrom(String[] labels, double[] probs)` | 93 | **Sampling** helper (Monte Carlo) — kept for legacy parity; paratemporal drivers do not call this. |
-| `HashSet getTerminals()` | 25 | Returns the terminals set. |
+### Static fields and methods
 
-### Gotchas
+| Signature | Purpose |
+|-----------|---------|
+| `static boolean useEquivalence` | Merge equivalent children when `true`. |
+| `static int defaultDepth` | Depth used by `main` when no argument is given. |
+| `static TreeFor{Domain} makeTreeToDepth(int maxDepth)` | Builds the root and runs `advanceLeafFront` `maxDepth` times. |
+| `static void advanceLeafFront(TreeFor{Domain} bt, int layer)` | Expands every leaf one layer, merging equivalents into `newLeaves`, then swaps `bt.leaves`. |
+| `static ParaDevsNodeFor{Domain} equivalentTo(leaf, HashSet<…> nodes)` | Linear scan for an equivalent node, or `null`. |
+| `static boolean equivalent(s, t)` | The approved equivalence predicate (exact / tolerance / histogram). |
+| `static void main(String[] args)` | Optional harness. |
 
-- The default constructor (`ParaDevsTree()`) pre-installs a generic `ParaDevsNode` root. Every driver overwrites `bt.root` with its own domain node; forgetting to do so silently builds a two-type tree that casts will fail on.
-- `leaves`, `interiors`, `terminals` are raw `HashSet` (no generic parameter). Cast explicitly when reading.
-- `selectFrom(...)` is the sampling API. Paratemporal drivers enumerate branches; do not call `selectFrom` from `advanceLeafFront`.
+Evidence-integrated drivers add the quantization helpers — see `quantized-helpers-cheatsheet.md`.
 
-## Supporting utilities (same package)
+## Gotchas
 
-| Class | File | Role |
-|-------|------|------|
-| `DiscretizeDistribution` | `DiscretizeDistribution.java` | `subSetProbsUniform(numGranules)` returns a `HashMap<Double, Double>` mapping representative values to uniform granule probabilities (used by Volume). |
-| `ChangeToCTM`, `CTM`, `CTMToDeterministic`, `MapToDeterministic` | (legacy) | Continuous-time Markov helpers; not used by the tree-expansion pattern. |
+- Never sample. Paratemporal drivers enumerate every branch; there is no `selectFrom` / `Random` in generated code.
+- When converting legacy source that extends the plugin's `ParaDevsNode`, fold the inherited fields above into the node class, drop `cm` / `key` / `path`, and replace `ParaDevsTree bt` with `TreeFor{Domain} bt` (typed sets, no casts).
 
-## `com.ms4systems.devs.paradevs.quantized.*`
+## Classpath
 
-See `quantized-package-cheatsheet.md` for the four classes in this sub-package (`Quantizer`, `QuantizedOperatorTable`, `GDomainConverter`, `ThresholdClassifier`).
+None. Compile with bare `javac`:
 
-## Minimum classpath for generated code
-
-Compile a skill-generated Node + Driver against:
-
+```bash
+javac -d out {NodeClass}.java {DriverClass}.java
+java -cp out {package}.{DriverClass}
 ```
-$CLOSURE_DEVS_JAR : $PARADEVS_SRC
-```
-
-where
-
-- `CLOSURE_DEVS_JAR` → `~/.m2/repository/com/ms4systems/Closure-DEVS/1.0.0/Closure-DEVS-1.0.0.jar` (default)
-- `PARADEVS_SRC` → `~/DEVS/paradevs/Closure-DEVS-paradevs-plugin/src` (default; alternately `PARADEVS_JAR` if a built JAR is available)
-
-Both env vars are overrideable. The skill's Stage 4 VALIDATE step reads these.

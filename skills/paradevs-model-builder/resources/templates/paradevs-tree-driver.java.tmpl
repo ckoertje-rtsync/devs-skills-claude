@@ -1,17 +1,18 @@
 package {{PACKAGE}};
 
 import java.util.HashSet;
-
-import com.ms4systems.devs.paradevs.ParaDevsTree;
 {{EXTRA_IMPORTS}}
 
 /**
  * Paratemporal tree driver for the {{DOMAIN}} model.
  *
  * <p>Replaces Monte Carlo sampling with breadth-first tree expansion. At each
- * level, every leaf is expanded via {@link #advanceLeafFront(ParaDevsTree, int)};
+ * level, every leaf is expanded via {@link #advanceLeafFront({{DRIVER_CLASS}}, int)};
  * equivalent children are merged via {@link #equivalent(
  * {{NODE_CLASS}}, {{NODE_CLASS}})} with cumulative {@code pathProb} accumulation.
+ *
+ * <p>An instance of this class is the tree container (root + frontier sets);
+ * the static methods build and query it.
  *
  * <p>Pattern references:
  *   - resources/patterns/make-tree-to-depth.md
@@ -27,9 +28,17 @@ public class {{DRIVER_CLASS}} {
     /** Default expansion depth if no depth is passed. */
     public static int defaultDepth = {{DEFAULT_DEPTH}};
 
-    private {{DRIVER_CLASS}}() {
-        // Static utility class
-    }
+    // ------------------------------------------------------------------ //
+    //  Tree container
+    // ------------------------------------------------------------------ //
+
+    public {{NODE_CLASS}} root;
+    /** Current BFS frontier; replaced on every {@code advanceLeafFront}. */
+    public HashSet<{{NODE_CLASS}}> leaves    = new HashSet<>();
+    /** Nodes that have been expanded. */
+    public HashSet<{{NODE_CLASS}}> interiors = new HashSet<>();
+    /** Outcome nodes that will not be expanded further. */
+    public HashSet<{{NODE_CLASS}}> terminals = new HashSet<>();
 
     // ------------------------------------------------------------------ //
     //  makeTreeToDepth
@@ -38,17 +47,14 @@ public class {{DRIVER_CLASS}} {
     /**
      * Build a full paratemporal tree to {@code maxDepth} levels.
      */
-    public static ParaDevsTree makeTreeToDepth(int maxDepth) {
-        ParaDevsTree bt = new ParaDevsTree();
+    public static {{DRIVER_CLASS}} makeTreeToDepth(int maxDepth) {
+        {{DRIVER_CLASS}} bt = new {{DRIVER_CLASS}}();
         {{NODE_CLASS}} root = new {{NODE_CLASS}}("root");
         root.level = 0;
         root.pathProb = 1.0;
 {{ROOT_INIT}}
         bt.root = root;
-        bt.leaves = new HashSet();
         bt.leaves.add(root);
-        bt.interiors = new HashSet();
-        bt.terminals = new HashSet();
 
         for (int d = 0; d < maxDepth; d++) {
             advanceLeafFront(bt, d);
@@ -67,20 +73,17 @@ public class {{DRIVER_CLASS}} {
      * @param layer the layer index (interpretation is domain-specific: dim,
      *              phase, cue index, etc.)
      */
-    @SuppressWarnings("unchecked")
-    public static void advanceLeafFront(ParaDevsTree bt, int layer) {
+    public static void advanceLeafFront({{DRIVER_CLASS}} bt, int layer) {
         HashSet<{{NODE_CLASS}}> newLeaves = new HashSet<>();
 
 {{LAYER_SETUP}}
 
-        for (Object o : bt.leaves) {
-            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+        for ({{NODE_CLASS}} n : bt.leaves) {
             bt.interiors.add(n);
 
 {{EXPAND_PARENT}}
 
-            for (Object c : n.children.values()) {
-                {{NODE_CLASS}} child = ({{NODE_CLASS}}) c;
+            for ({{NODE_CLASS}} child : n.children.values()) {
 
 {{TERMINAL_CHECK}}
 
@@ -130,12 +133,11 @@ public class {{DRIVER_CLASS}} {
     public static void main(String[] args) {
         int depth = (args.length > 0) ? Integer.parseInt(args[0]) : defaultDepth;
         long start = System.currentTimeMillis();
-        ParaDevsTree bt = makeTreeToDepth(depth);
+        {{DRIVER_CLASS}} bt = makeTreeToDepth(depth);
         long end = System.currentTimeMillis();
 
         double totalProb = 0.0;
-        for (Object o : bt.leaves) {
-            {{NODE_CLASS}} n = ({{NODE_CLASS}}) o;
+        for ({{NODE_CLASS}} n : bt.leaves) {
             totalProb += n.pathProb;
         }
 

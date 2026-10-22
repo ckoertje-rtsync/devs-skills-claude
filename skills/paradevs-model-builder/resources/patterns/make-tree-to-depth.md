@@ -5,14 +5,13 @@
 ## Canonical skeleton
 
 ```java
-public static ParaDevsTree makeTreeToDepth(int maxDepth) {
-    ParaDevsTree bt = new ParaDevsTree();
+public static TreeForX makeTreeToDepth(int maxDepth) {
+    TreeForX bt = new TreeForX();          // the driver class is the tree container
     NodeForX root = new NodeForX("root");
     root.pathProb = 1.0;
     root.level = 0;
     // ... domain state init (e.g., root.partialSumSq = 0.0;) ...
     bt.root = root;
-    bt.leaves = new HashSet();
     bt.leaves.add(root);
     for (int d = 0; d < maxDepth; d++) {
         advanceLeafFront(bt, d);
@@ -25,8 +24,8 @@ public static ParaDevsTree makeTreeToDepth(int maxDepth) {
 
 | Step | What must be true |
 |------|-------------------|
-| Construct `ParaDevsTree` | `bt.leaves`, `bt.interiors`, `bt.terminals` are empty HashSets (the default `ParaDevsTree()` constructor also creates a placeholder root node — overwrite it). |
-| Initialize root | `root.level = 0`, `root.pathProb = 1.0`. Always set `pathProb = 1.0` explicitly; `ParaDevsNode.pathProb` defaults to `0.0` which will zero out all descendants. |
+| Construct `TreeForX` | `bt.leaves`, `bt.interiors`, `bt.terminals` start as empty typed `HashSet`s; `bt.root` is `null` until installed. |
+| Initialize root | `root.level = 0`, `root.pathProb = 1.0`. The node's `pathProb` field already defaults to `1.0`; set it explicitly anyway so the invariant is visible (and so converted legacy code, where the plugin base class defaulted it to `0.0`, cannot zero out all descendants). |
 | Install root | `bt.root = root` AND `bt.leaves.add(root)`. Omitting the leaf-set add leaves the frontier empty and `advanceLeafFront` is a no-op. |
 | BFS loop | Pass the depth index `d` into `advanceLeafFront`; many domains use `d` to select a phase / dimension / cue layer. |
 
@@ -53,6 +52,5 @@ Volume sets `earlyElimination = true` (`ParaDEVSTreeForVolume.java:50`) — duri
 
 ## Gotchas
 
-- The `ParaDevsTree()` default constructor (`ParaDevsTree.java:29`) pre-allocates a `ParaDevsNode` at `root` with `level = 0`. Overwrite `bt.root` with your domain node or the tree will mix types.
-- `bt.leaves = new HashSet();` explicitly — do not rely on the tree's default field init if you have reinitialized the tree elsewhere.
-- Volume's implementation leaves `bt.interiors` and `bt.terminals` commented out (line 63–64). If you need terminal aggregation, reset them to fresh HashSets here.
+- Always build a fresh `TreeForX` per run; the frontier sets are instance fields, so reusing a tree carries over old leaves and terminals.
+- Volume's reference implementation leaves `bt.interiors` and `bt.terminals` commented out (line 63–64). Generated drivers always initialize them, so terminal aggregation works without extra setup.
