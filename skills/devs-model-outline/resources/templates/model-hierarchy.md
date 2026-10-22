@@ -56,11 +56,11 @@ classDiagram
 ```mermaid
 graph BT
     {{#each hierarchy_atomic_nodes}}
-    {{id}}["{{name}}\n‹Atomic›"]
+    {{id}}["{{name}}<br/>‹Atomic›"]
     {{/each}}
 
     {{#each hierarchy_coupled_nodes}}
-    {{id}}{{"{{name}}\n‹Coupled›"}}
+    {{id}}{{"{{name}}<br/>‹Coupled›"}}
     {{/each}}
 
     {{#each hierarchy_edges}}

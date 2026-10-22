@@ -1,6 +1,6 @@
 ---
 name: devs-model-outline
-description: "Create a DEVS model specification from input/documentation or outline an existing DEVS model from project source files. Produces a suite of Markdown files with Mermaid UML diagrams including state diagrams for atomic models, flow and sequence diagrams for coupled models."
+description: "Create a DEVS model specification from input/documentation or outline an existing DEVS model from project source files. Produces a modular suite of Markdown files — one self-contained spec per model — with Mermaid UML diagrams: each atomic model's spec embeds its state diagram; each coupled model's spec embeds its coupling-flow and interaction-sequence diagrams."
 ---
 
 # DEVS Model Outline
@@ -12,7 +12,7 @@ Produces comprehensive DEVS (Discrete Event System Specification) model document
 - **CREATE mode**: Given a system description or requirements documentation, autonomously infers the complete DEVS model structure — states, ports, transitions, time advances, couplings — and generates formal specification documents with visual diagrams.
 - **ANALYZE mode**: Given a project containing existing DEVS model source files (`.java` MS4Systems Basic-DEVS or `.pdm` PowerDEVS), parses the code to extract the model structure and generates equivalent documentation.
 
-Both modes produce the same output: 9 interlinked Markdown files covering formal specifications, state diagrams, coupling topologies, interaction sequences, model hierarchy, and test scenarios.
+Both modes produce the same output: a set of interlinked Markdown files — a model overview, one self-contained specification per atomic model (formal spec **and** its state diagram), one self-contained specification per coupled model (formal spec **and** its coupling-flow and interaction-sequence diagrams), a model hierarchy, and test scenarios. The per-model layout keeps each model's spec and diagrams together in a single file, modular and independently navigable.
 
 ## Workflow Overview
 
@@ -22,13 +22,10 @@ stateDiagram-v2
 
     state Phase0_SCAN {
         [*] --> scan_templates
-        [*] --> scan_agentdb
         [*] --> scan_project
         scan_templates: Glob templates/*.md
-        scan_agentdb: AgentDB pattern-search
         scan_project: Glob project files<br/>(ANALYZE mode only)
         scan_templates --> build_catalog
-        scan_agentdb --> build_catalog
         scan_project --> build_catalog
         build_catalog: Build catalog → MODEL_CONTEXT
     }
@@ -118,25 +115,16 @@ stateDiagram-v2
         [*] --> write_overview
         [*] --> write_atomic_specs
         [*] --> write_coupled_specs
-        [*] --> write_state_diags
-        [*] --> write_flow_diags
-        [*] --> write_sequences
         [*] --> write_hierarchy
         [*] --> write_tests
         write_overview: 01-model-overview.md
-        write_atomic_specs: 02-atomic-model-specs.md
-        write_coupled_specs: 03-coupled-model-specs.md
-        write_state_diags: 04-state-diagrams.md
-        write_flow_diags: 05-coupling-flow-diagrams.md
-        write_sequences: 06-interaction-sequences.md
-        write_hierarchy: 07-model-hierarchy.md
-        write_tests: 08-test-scenarios.md
+        write_atomic_specs: atomic-NAME.md<br/>(one per atomic:<br/>spec + state diagram)
+        write_coupled_specs: coupled-NAME.md<br/>(one per coupled:<br/>spec + flow + sequence)
+        write_hierarchy: model-hierarchy.md
+        write_tests: test-scenarios.md
         write_overview --> write_readme
         write_atomic_specs --> write_readme
         write_coupled_specs --> write_readme
-        write_state_diags --> write_readme
-        write_flow_diags --> write_readme
-        write_sequences --> write_readme
         write_hierarchy --> write_readme
         write_tests --> write_readme
         write_readme: README.md (index)
@@ -147,10 +135,7 @@ stateDiagram-v2
     state Phase5_SUMMARIZE {
         [*] --> present_summary
         present_summary: Present executive summary
-        present_summary --> store_patterns
-        store_patterns: AgentDB pattern-store
-        store_patterns --> train_reasoning
-        train_reasoning: ReasoningBank learn
+        present_summary --> [*]
     }
 
     Phase5_SUMMARIZE --> [*]
@@ -176,8 +161,7 @@ MODEL_CONTEXT = {
   catalog: {
     templates: [                   // Output templates
       { name: "", path: "", placeholders: [] }
-    ],
-    prior_patterns: []             // From AgentDB search
+    ]
   },
 
   // ── From Phase 1 (Discovery) ──
@@ -339,16 +323,15 @@ This skill includes output templates with Handlebars-style placeholders and embe
 ```
 devs-model-outline/
 └── resources/
-    └── templates/              # 9 Markdown output templates
+    └── templates/              # 6 Markdown output templates
         ├── model-overview.md          # System identification & inventory
-        ├── atomic-model-spec.md       # Formal M = <X,Y,S,δ_int,δ_ext,λ,ta>
-        ├── coupled-model-spec.md      # Formal N = <X,Y,D,{M_d},{I_d},{Z_ij},Select>
-        ├── state-diagrams.md          # Mermaid stateDiagram-v2
-        ├── coupling-flow-diagrams.md  # Mermaid flowchart TD
-        ├── interaction-sequences.md   # Mermaid sequenceDiagram
+        ├── atomic-model.md            # Per atomic model: formal M = <X,Y,S,δ_int,δ_ext,λ,ta> + embedded state diagram
+        ├── coupled-model.md           # Per coupled model: formal N = <X,Y,D,{M_d},{I_d},{Z_ij},Select> + embedded flow & sequence diagrams
         ├── model-hierarchy.md         # Mermaid classDiagram + graph BT
         ├── test-scenarios.md          # Test scenario specifications
         └── index-readme.md            # Index/README linking all outputs
+
+The `atomic-model.md` and `coupled-model.md` templates are **single-model** templates: the skill renders one output file per model by populating the template with that model's data. This keeps each model's formal spec and its diagrams together in one self-contained, independently navigable document.
 ```
 
 ---
@@ -365,35 +348,27 @@ devs-model-outline/
 sequenceDiagram
     participant S as Skill Engine
     participant FS as File System
-    participant ADB as AgentDB
-    participant RB as ReasoningBank
 
-    par Phase 0 Concurrent Scan
-        S->>FS: Glob templates/*.md
-        Note over FS: Step 0.1
-        S->>ADB: pattern-search("DEVS model outline")
-        Note over ADB: Step 0.2
-        S->>RB: trajectory-start(task="DEVS model outline")
-        Note over RB: Step 0.3
+    S->>FS: Glob templates/*.md
+    Note over FS: Step 0.1
+    FS-->>S: template_files[]
+
+    opt ANALYZE mode
+        S->>FS: Glob project source files
+        FS-->>S: source_files[]
     end
 
-    FS-->>S: template_files[]
-    ADB-->>S: prior_patterns[]
-    RB-->>S: trajectory_id
-
-    S->>S: Step 0.4: Build catalog
+    S->>S: Step 0.2: Build catalog
     Note over S: MODEL_CONTEXT.catalog = {...}
 ```
 
-**Steps 0.1, 0.2, 0.3 (CONCURRENT):**
+**Step 0.1:**
 
 | Step | Tool | Action |
 |------|------|--------|
 | 0.1 | `Glob` | `resources/templates/*.md` → `template_files[]` |
-| 0.2 | `mcp__claude-flow__agentdb_pattern-search` | Search for `"DEVS model outline"` patterns → `prior_patterns[]` |
-| 0.3 | `mcp__claude-flow__hooks_intelligence_trajectory-start` | Begin trajectory: `task="DEVS model outline generation"` |
 
-**Step 0.4 (Sequential, depends on 0.1-0.3):**
+**Step 0.2 (Sequential, depends on 0.1):**
 
 For each template file, extract:
 - Template name (from filename)
@@ -407,11 +382,12 @@ MODEL_CONTEXT.catalog = {
   templates: [
     { name: "model-overview", path: "resources/templates/model-overview.md",
       placeholders: ["system_name", "system_description", ...] },
-    { name: "atomic-model-spec", path: "resources/templates/atomic-model-spec.md",
-      placeholders: ["model_name", "port_name", "event_type", ...] },
+    { name: "atomic-model", path: "resources/templates/atomic-model.md",
+      placeholders: ["name", "id", "port_name", "event_type", "initial_state", ...] },
+    { name: "coupled-model", path: "resources/templates/coupled-model.md",
+      placeholders: ["name", "id", "source_port", "dest_component", ...] },
     ...
-  ],
-  prior_patterns: [...]  // From AgentDB
+  ]
 }
 ```
 
@@ -419,8 +395,7 @@ MODEL_CONTEXT.catalog = {
 
 ```
 HANDOFF_0_TO_1 = {
-  catalog: MODEL_CONTEXT.catalog,
-  trajectory_id: <from ReasoningBank>
+  catalog: MODEL_CONTEXT.catalog
 }
 ```
 
@@ -455,7 +430,7 @@ If the user's initial input contains a system description, use it directly. Othe
 - What system or process should be modeled?
 - What is the modeling goal or expected behavior?
 
-**Steps 1.2a-1.2f (CONCURRENT):**
+**Steps 1.2a-1.2e (CONCURRENT):**
 
 Autonomously infer the DEVS structure from the description. Execute these analysis steps in parallel:
 
@@ -466,7 +441,6 @@ Autonomously infer the DEVS structure from the description. Execute these analys
 | 1.2c | Map input and output ports — what events enter and leave the system | `atomic_models[].formal_spec.X`, `Y` |
 | 1.2d | Determine transitions (δ_int, δ_ext), output function (λ), and time advances (ta) | `delta_int`, `delta_ext`, `lambda`, `ta` |
 | 1.2e | Identify coupled model structure if applicable — components and couplings (EIC, IC, EOC) | `coupled_models[]` |
-| 1.2f | Search AgentDB for matching domain patterns | `mcp__claude-flow__agentdb_pattern-search` |
 
 **Inference Guidelines:**
 
@@ -514,7 +488,7 @@ Please confirm or provide corrections.
 
 **Step 1.4: Apply User Corrections**
 
-If the user provides corrections, update the MODEL_CONTEXT accordingly. Log corrections via `mcp__claude-flow__agentdb_feedback`.
+If the user provides corrections, update the MODEL_CONTEXT accordingly.
 
 ---
 
@@ -598,8 +572,6 @@ HANDOFF_1_TO_2 = {
 }
 ```
 
-Log: `mcp__claude-flow__hooks_intelligence_trajectory-step(action="Phase 1: Discovery complete", data=HANDOFF_1_TO_2)`
-
 ---
 
 ## Phase 2: Formalize and Validate
@@ -650,8 +622,6 @@ HANDOFF_2_TO_3 = {
   hierarchy: MODEL_CONTEXT.hierarchy
 }
 ```
-
-Log: `mcp__claude-flow__hooks_intelligence_trajectory-step(action="Phase 2: Formalization complete")`
 
 ---
 
@@ -716,7 +686,7 @@ stateDiagram-v2
 - **No `[brackets]`**: Avoid `[text]` in transition labels — use `(parentheses)` or plain text instead
 - **No multiple colons in transitions**: Use at most one `:` per transition label (the separator between arrow and label)
 - **Inline notes only for stateDiagram**: Use `note right of STATE : text` not multi-line blocks
-- **Use `<br/>` sparingly**: Only in `flowchart` node labels where it is reliably supported
+- **Line breaks via `<br/>`**: When a multi-line label is needed, use `<br/>` (never `\n`) — supported in `flowchart`/`graph` node labels and `sequenceDiagram` notes. In `stateDiagram-v2`, prefer the `STATE : description` syntax instead of line breaks.
 
 ---
 
@@ -732,8 +702,8 @@ flowchart TD
         EXT_IN_port1(["⬇ ext_input"])
         EXT_OUT_port2(["⬆ ext_output"])
 
-        COMP_A["ComponentA\n‹Atomic›\nStates: 3"]
-        COMP_B["ComponentB\n‹Atomic›\nStates: 2"]
+        COMP_A["ComponentA<br/>‹Atomic›<br/>States: 3"]
+        COMP_B["ComponentB<br/>‹Atomic›<br/>States: 2"]
 
         EXT_IN_port1 -.->|"EIC"| COMP_A
         COMP_A -->|"out → in"| COMP_B
@@ -750,7 +720,7 @@ flowchart TD
    - Node: `EXT_OUT_{port_name}(["⬆ {port_name}"])`
 4. **Components**: For each component ID in `formal_spec.D`:
    - Look up the atomic model by ID to get state count
-   - Node: `{component_id}["{component_name}\n‹Atomic›\nStates: {state_count}"]`
+   - Node: `{component_id}["{component_name}<br/>‹Atomic›<br/>States: {state_count}"]`
 5. **EIC arrows** (dashed): For each EIC entry:
    - `EXT_IN_{source_port} -.->|"EIC"| {dest_component}`
 6. **IC arrows** (solid): For each IC entry:
@@ -773,22 +743,22 @@ sequenceDiagram
     Note over ENV,B: Scenario: Normal processing flow
 
     ENV->>A: event via ext_input
-    Note over A: δ_ext: PASSIVE → BUSY\nta = 5.0
+    Note over A: delta_ext: PASSIVE -> BUSY<br/>ta = 5.0
     activate A
 
     A->>A: Processing (ta = 5.0)
-    Note over A: λ: out → result
-    A-->>B: result via out→in
+    Note over A: lambda: out -> result
+    A-->>B: result via out -> in
     deactivate A
-    Note over A: δ_int: BUSY → PASSIVE
+    Note over A: delta_int: BUSY -> PASSIVE
 
     activate B
-    Note over B: δ_ext: IDLE → ACTIVE\nta = 3.0
+    Note over B: delta_ext: IDLE -> ACTIVE<br/>ta = 3.0
     B->>B: Processing (ta = 3.0)
-    Note over B: λ: out → output
+    Note over B: lambda: out -> output
     B-->>ENV: output via ext_output
     deactivate B
-    Note over B: δ_int: ACTIVE → IDLE
+    Note over B: delta_int: ACTIVE -> IDLE
 ```
 
 **Construction rules:**
@@ -796,11 +766,13 @@ sequenceDiagram
 1. **Participants**: Environment first, then each component in coupling order
 2. **Scenario**: Use the first test scenario from `formalization.test_scenarios[]` that targets this coupled model, or construct a nominal path scenario
 3. **External input**: `ENV->>{first_component}: {event} via {port_name}`
-4. **δ_ext notes**: `Note over {component}: δ_ext: {from} → {to}\nta = {sigma}`
+4. **δ_ext notes**: `Note over {component}: delta_ext: {from} -> {to}<br/>ta = {sigma}`
 5. **Activation bars**: `activate {component}` when entering a non-passive state, `deactivate` after δ_int returns to passive
-6. **λ outputs**: Dashed arrows `{source}-->>{dest}: {value} via {port}→{port}`
-7. **δ_int notes**: `Note over {component}: δ_int: {from} → {to}`
+6. **λ outputs**: Dashed arrows `{source}-->>{dest}: {value} via {port} -> {port}`
+7. **δ_int notes**: `Note over {component}: delta_int: {from} -> {to}`
 8. **Concurrent events**: Use `par` blocks when multiple components have simultaneous transitions
+
+> **sequenceDiagram label convention:** Use ASCII inside participant messages and notes — `delta_int`, `delta_ext`, `lambda`, `sigma`, and `->` (not Greek δ/λ/σ or the `→` arrow), and `<br/>` (never `\n`) for line breaks. The Greek symbols render reliably in `stateDiagram-v2` but are an unnecessary risk in `sequenceDiagram`; the validated house style keeps sequence diagrams ASCII-only.
 
 ---
 
@@ -866,9 +838,9 @@ Generate one bottom-up hierarchy diagram:
 
 ```mermaid
 graph BT
-    AM1["ComponentA\n‹Atomic›"]
-    AM2["ComponentB\n‹Atomic›"]
-    CM1{{"CoupledSystem\n‹Coupled›"}}
+    AM1["ComponentA<br/>‹Atomic›"]
+    AM2["ComponentB<br/>‹Atomic›"]
+    CM1{{"CoupledSystem<br/>‹Coupled›"}}
 
     AM1 --> CM1
     AM2 --> CM1
@@ -878,8 +850,8 @@ graph BT
 
 **Construction rules:**
 
-1. **Atomic models**: Rectangle nodes `{id}["{name}\n‹Atomic›"]`
-2. **Coupled models**: Hexagon nodes `{id}{{"{name}\n‹Coupled›"}}`
+1. **Atomic models**: Rectangle nodes `{id}["{name}<br/>‹Atomic›"]`
+2. **Coupled models**: Hexagon nodes `{id}{{"{name}<br/>‹Coupled›"}}`
 3. **Edges**: `{child_id} --> {parent_id}` from component to containing coupled model
 4. **Root styling**: `style {root_id} fill:#e1f5fe,stroke:#0288d1,stroke-width:2px`
 5. **Layout**: Bottom-to-top (`graph BT`) so atomics are at the bottom, root coupled at top
@@ -930,8 +902,6 @@ HANDOFF_3_TO_4 = {
 }
 ```
 
-Log: `mcp__claude-flow__hooks_intelligence_trajectory-step(action="Phase 3: Diagrams generated")`
-
 ---
 
 ## Phase 4: Deploy Output Files
@@ -944,48 +914,47 @@ Log: `mcp__claude-flow__hooks_intelligence_trajectory-step(action="Phase 3: Diag
 
 ```
 docs/devs-outline/{system_name}/
-├── README.md
-├── 01-model-overview.md
-├── 02-atomic-model-specs.md
-├── 03-coupled-model-specs.md
-├── 04-state-diagrams.md
-├── 05-coupling-flow-diagrams.md
-├── 06-interaction-sequences.md
-├── 07-model-hierarchy.md
-└── 08-test-scenarios.md
+├── README.md                      # index linking every document
+├── 01-model-overview.md           # system identification, inventory, hierarchy graph
+├── atomic-{model-name}.md         # one per atomic model: formal spec + embedded state diagram
+├── coupled-{model-name}.md        # one per coupled model: formal spec + embedded flow + sequence diagrams
+├── model-hierarchy.md             # classDiagram + composition tree
+└── test-scenarios.md              # test scenario specifications
 ```
 
-Where `{system_name}` is derived from `MODEL_CONTEXT.system.name` converted to kebab-case.
+`{system_name}` and each `{model-name}` are derived from the corresponding `MODEL_CONTEXT` name converted to kebab-case (e.g. `GameController` → `atomic-game-controller.md`, `BaseballGame` → `coupled-baseball-game.md`). The total file count is `1 (overview) + N (atomic models) + M (coupled models) + 1 (hierarchy) + 1 (tests) + 1 (README)`.
 
-### Concurrent Execution
+> **Modularity rule:** Each model gets exactly one self-contained file. An atomic model's file embeds its formal spec **and** its `stateDiagram-v2`. A coupled model's file embeds its formal spec **and** both its `flowchart TD` (coupling/flow) and its `sequenceDiagram` (interaction). Never split a model's spec and diagrams across files, and never group multiple models into one file.
 
-**Steps 4.1-4.8 (CONCURRENT):** Write all 8 content files using the corresponding templates from `resources/templates/`. For each file:
+### Per-file Rendering
+
+For each output file:
 
 1. Read the template from `resources/templates/`
 2. Replace all `{{placeholder}}` tokens with values from MODEL_CONTEXT
 3. Expand `{{#each collection}}...{{/each}}` blocks by iterating over the corresponding arrays
 4. Write the populated file to the output directory
 
-| Step | Template | Output File | Primary Data Source |
-|------|----------|-------------|---------------------|
+| Step | Template | Output File(s) | Primary Data Source |
+|------|----------|----------------|---------------------|
 | 4.1 | `model-overview.md` | `01-model-overview.md` | `system`, `atomic_models[]`, `coupled_models[]`, `hierarchy` |
-| 4.2 | `atomic-model-spec.md` | `02-atomic-model-specs.md` | `atomic_models[].formal_spec` |
-| 4.3 | `coupled-model-spec.md` | `03-coupled-model-specs.md` | `coupled_models[].formal_spec` |
-| 4.4 | `state-diagrams.md` | `04-state-diagrams.md` | `diagrams.state_diagrams[]` |
-| 4.5 | `coupling-flow-diagrams.md` | `05-coupling-flow-diagrams.md` | `diagrams.flow_diagrams[]` |
-| 4.6 | `interaction-sequences.md` | `06-interaction-sequences.md` | `diagrams.sequence_diagrams[]` |
-| 4.7 | `model-hierarchy.md` | `07-model-hierarchy.md` | `diagrams.class_diagram`, `diagrams.hierarchy_diagram` |
-| 4.8 | `test-scenarios.md` | `08-test-scenarios.md` | `formalization.test_scenarios[]` |
+| 4.2 | `atomic-model.md` | `atomic-{name}.md` (one per atomic model) | `atomic_models[i].formal_spec` + matching `diagrams.state_diagrams[]` |
+| 4.3 | `coupled-model.md` | `coupled-{name}.md` (one per coupled model) | `coupled_models[i].formal_spec` + matching `diagrams.flow_diagrams[]` + `diagrams.sequence_diagrams[]` |
+| 4.4 | `model-hierarchy.md` | `model-hierarchy.md` | `diagrams.class_diagram`, `diagrams.hierarchy_diagram` |
+| 4.5 | `test-scenarios.md` | `test-scenarios.md` | `formalization.test_scenarios[]` |
 
-**Step 4.9 (Sequential, depends on 4.1-4.8):** Write README.md
+Steps 4.1–4.5 are independent and may run concurrently. Steps 4.2 and 4.3 each expand into one file *per model* — match each model to its diagrams by `model_id` and embed the diagram's fenced `mermaid` code block directly in that model's file.
 
-Use the `index-readme.md` template. This file links to all 8 content files and includes a quick stats summary.
+**Step 4.6 (Sequential, depends on 4.1–4.5):** Write README.md
 
-**Step 4.10 (Sequential):** Verify all files exist
+Use the `index-readme.md` template. The README's document list is built dynamically: a link to `01-model-overview.md`, one link per generated `atomic-*.md` file, one link per generated `coupled-*.md` file, then `model-hierarchy.md` and `test-scenarios.md`. Include the quick-stats summary.
+
+**Step 4.7 (Sequential):** Verify all files exist
 
 ```
-// Verify all 9 files were written:
-Glob: docs/devs-outline/{system_name}/*.md → verify count = 9
+// Expected count = 4 fixed files (overview, hierarchy, tests, README) + one per model:
+Glob: docs/devs-outline/{system_name}/*.md
+  → verify count = 4 + atomic_models.length + coupled_models.length
 ```
 
 Update deployment status:
@@ -994,7 +963,7 @@ Update deployment status:
 MODEL_CONTEXT.deployment = {
   deployed: true,
   output_dir: "docs/devs-outline/{system_name}/",
-  files: [list of 9 file paths],
+  files: [list of all written file paths],
   timestamp: <current ISO timestamp>
 }
 ```
@@ -1008,15 +977,13 @@ HANDOFF_4_TO_5 = {
 }
 ```
 
-Log: `mcp__claude-flow__hooks_intelligence_trajectory-step(action="Phase 4: Files deployed")`
-
 ---
 
-## Phase 5: Summarize and Learn
+## Phase 5: Summarize
 
 **Depends on:** `HANDOFF_4_TO_5`
 
-**Purpose:** Present results, compute metrics, store learned patterns.
+**Purpose:** Present results and compute metrics.
 
 ### Sequential Execution
 
@@ -1063,99 +1030,29 @@ Output:      {deployment.output_dir}
 FILES GENERATED:
   ✓ README.md
   ✓ 01-model-overview.md
-  ✓ 02-atomic-model-specs.md
-  ✓ 03-coupled-model-specs.md
-  ✓ 04-state-diagrams.md
-  ✓ 05-coupling-flow-diagrams.md
-  ✓ 06-interaction-sequences.md
-  ✓ 07-model-hierarchy.md
-  ✓ 08-test-scenarios.md
+  ✓ atomic-{name}.md        (one per atomic model — spec + state diagram)
+  ...
+  ✓ coupled-{name}.md       (one per coupled model — spec + flow + sequence)
+  ...
+  ✓ model-hierarchy.md
+  ✓ test-scenarios.md
 ```
 
-**Step 5.3: Store Patterns in AgentDB**
-
-```
-mcp__claude-flow__agentdb_pattern-store({
-  pattern_type: "devs-model-outline",
-  domain: MODEL_CONTEXT.system.description,
-  model_type: MODEL_CONTEXT.system.type,
-  atomic_count: metrics.atomic_model_count,
-  coupled_count: metrics.coupled_model_count,
-  state_count: metrics.total_states,
-  mode: MODEL_CONTEXT.mode,
-  success: true
-})
-```
-
-**Step 5.4: Train ReasoningBank**
-
-```
-mcp__claude-flow__hooks_intelligence_learn({
-  verdict: "success",
-  reward: 0.95,
-  context: "DEVS model outline generation",
-  outcome: {
-    mode: MODEL_CONTEXT.mode,
-    models_documented: metrics.atomic_model_count + metrics.coupled_model_count,
-    diagrams_generated: diagrams.state_diagrams.length
-                        + diagrams.flow_diagrams.length
-                        + diagrams.sequence_diagrams.length + 2,
-    files_written: deployment.files.length
-  }
-})
-```
-
-If the user provided corrections during Phase 1:
-
-```
-mcp__claude-flow__agentdb_feedback({
-  feedback_type: "correction",
-  context: "DEVS model outline - Phase 1 discovery",
-  original: <original inference>,
-  corrected: <user correction>,
-  lesson: <what to infer differently next time>
-})
-```
+List the actual generated per-model file names (one line each) in place of the `{name}` placeholders.
 
 ---
 
-## Swarm Coordination (Complex Models)
+## Parallelization for Complex Models
 
-For systems with more than 5 atomic models or 3 coupled models, use swarm coordination to parallelize work:
+For large systems (e.g. more than 5 atomic models or 3 coupled models), parallelize the independent work with the built-in `Task` tool by spawning concurrent subagents — no external orchestration service is required. Each subagent returns its result to the main thread, which merges the results into `MODEL_CONTEXT`. This keeps the skill self-contained and portable.
 
-**Phase 1 ANALYZE — File Parsing Swarm:**
+**Phase 1 ANALYZE — parse source files in parallel:**
 
-```
-mcp__claude-flow__swarm_init({
-  name: "devs-outline-parse",
-  topology: "fan-out",
-  task_count: source_files.length
-})
+Spawn one `general-purpose` subagent per source file, each instructed to parse a single `.java`/`.pdm` file using the extraction patterns in Phase 1 and return the structured model data. Launch them in a single message so they run concurrently, then merge the returned specs into `MODEL_CONTEXT.atomic_models[]` / `coupled_models[]`.
 
-// Spawn one worker per source file:
-for each source_file in source_files:
-  mcp__claude-flow__agent_spawn({
-    type: "worker",
-    task: "Parse DEVS model from " + source_file,
-    data: { file_path: source_file, patterns: JAVA_PARSE_PATTERNS }
-  })
-```
+**Phase 4 DEPLOY — render per-model files in parallel:**
 
-**Phase 3 — Diagram Generation Swarm:**
-
-```
-mcp__claude-flow__swarm_init({
-  name: "devs-outline-diagrams",
-  topology: "fan-out",
-  task_count: atomic_models.length + coupled_models.length * 2 + 2
-})
-
-// Spawn workers for each diagram type:
-// - One per atomic model (state diagrams)
-// - Two per coupled model (flow + sequence diagrams)
-// - One for class diagram
-// - One for hierarchy diagram
-```
+Because the output is one self-contained file per model, rendering is naturally parallel. Spawn one subagent per model file — each renders its `atomic-model.md` or `coupled-model.md` template with that model's data and embedded diagrams — plus the overview, hierarchy, and test-scenario files. Keep the per-model files independent so they can be generated and validated in isolation; write the README last, once the full per-model file list is known.
 
 ---
 
@@ -1164,20 +1061,20 @@ mcp__claude-flow__swarm_init({
 ### Atomic-Only Systems
 
 If `MODEL_CONTEXT.system.type === "atomic"` (no coupled models):
-- Skip `03-coupled-model-specs.md` — write a placeholder noting "No coupled models"
-- Skip `05-coupling-flow-diagrams.md` — write a placeholder
-- Skip `06-interaction-sequences.md` — write a placeholder
+- Write no `coupled-*.md` files at all — there are no coupled models to document
+- Each atomic model still gets its own `atomic-{name}.md` containing its formal spec and embedded state diagram
 - The class diagram and hierarchy diagram show only the atomic model(s)
+- In the README and overview, omit (or mark as empty) the coupled-models section
 
 ### Coupled-Only Documentation
 
 If the user only wants to document a single coupled model's topology (no deep atomic specs):
-- Still document all atomic components, but with abbreviated specs
-- Focus depth on coupling diagrams and interaction sequences
+- Still write one `atomic-{name}.md` per component, but with abbreviated specs
+- Put the depth into the `coupled-{name}.md` file's coupling-flow and interaction-sequence diagrams
 
 ### Hierarchical Models
 
 If `hierarchy.depth > 2` (nested coupled models):
-- Generate flow diagrams at each level of the hierarchy
+- Each coupled model at every level still gets its own `coupled-{name}.md` with its own flow and sequence diagrams
 - The hierarchy diagram uses multiple layers in the `graph BT`
 - Sequence diagrams may need `box` blocks to group components by their parent coupled model

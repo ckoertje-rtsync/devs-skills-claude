@@ -1,18 +1,12 @@
-# Atomic Model Specifications — {{system_name}}
+# {{name}} ({{id}}) — Atomic Model Specification
 
-> Formal DEVS specifications for all atomic models in the system.
-
-{{#each atomic_models}}
-
----
-
-## {{name}} ({{id}})
+> Self-contained DEVS specification and state diagram for the **{{name}}** atomic model.
 
 {{#if source_file}}
 **Source:** `{{source_file}}`
 {{/if}}
 
-### Formal Specification
+## Formal Specification
 
 **M = \<X, Y, S, δ_int, δ_ext, λ, ta\>**
 
@@ -94,4 +88,38 @@
 {{/each}}
 {{/if}}
 
+## State Diagram
+
+Mermaid `stateDiagram-v2`. States show their time advance (`ta`); passive states (`ta = INFINITY`) wait indefinitely for external input. Greek `δ`/`λ` are used here, where `stateDiagram-v2` renders them reliably.
+
+```mermaid
+stateDiagram-v2
+    [*] --> {{initial_state}}
+
+    {{#each formal_spec.S}}
+    {{name}} : {{name}} (ta = {{sigma}}{{#if is_passive}}, passive{{/if}})
+    {{/each}}
+
+    {{#each formal_spec.delta_int}}
+    {{from_state}} --> {{to_state}} : δ_int{{#if description}}, {{description}}{{/if}}
+    {{/each}}
+
+    {{#each formal_spec.delta_ext}}
+    {{current_state}} --> {{to_state}} : {{input_port}} (δ_ext)
+    {{/each}}
+
+    {{#each formal_spec.lambda}}
+    note right of {{state}} : λ {{output_port}} {{value}}
+    {{/each}}
+```
+
+### Transition Summary
+
+| Type | Trigger | From | To | Description |
+|------|---------|------|----|-------------|
+{{#each formal_spec.delta_int}}
+| δ_int | Time advance expired | `{{from_state}}` | `{{to_state}}` | {{description}} |
+{{/each}}
+{{#each formal_spec.delta_ext}}
+| δ_ext | `{{input_port}}` event | `{{current_state}}` | `{{to_state}}` | {{description}} |
 {{/each}}

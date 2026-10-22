@@ -60,13 +60,16 @@ graph BT
 
 ## Document Suite
 
-| # | Document | Description |
-|---|----------|-------------|
-| 1 | [Model Overview](01-model-overview.md) | This document |
-| 2 | [Atomic Model Specs](02-atomic-model-specs.md) | Formal M = \<X,Y,S,δ_int,δ_ext,λ,ta\> |
-| 3 | [Coupled Model Specs](03-coupled-model-specs.md) | Formal N = \<X,Y,D,{M_d},{I_d},{Z_ij},Select\> |
-| 4 | [State Diagrams](04-state-diagrams.md) | Mermaid stateDiagram-v2 per atomic model |
-| 5 | [Coupling Flow Diagrams](05-coupling-flow-diagrams.md) | Mermaid flowchart TD per coupled model |
-| 6 | [Interaction Sequences](06-interaction-sequences.md) | Mermaid sequenceDiagram per coupled model |
-| 7 | [Model Hierarchy](07-model-hierarchy.md) | classDiagram + graph BT |
-| 8 | [Test Scenarios](08-test-scenarios.md) | Input/output test sequences |
+> One self-contained file per model: each atomic spec embeds its state diagram; each coupled spec embeds its flow and interaction diagrams.
+
+| Document | Description |
+|----------|-------------|
+| [Model Overview](01-model-overview.md) | This document — identification, inventory, hierarchy |
+{{#each atomic_models}}
+| [{{name}} (atomic)](atomic-{{name_kebab}}.md) | Formal M = \<X,Y,S,δ_int,δ_ext,λ,ta\> + state diagram |
+{{/each}}
+{{#each coupled_models}}
+| [{{name}} (coupled)](coupled-{{name_kebab}}.md) | Formal N = \<X,Y,D,{M_d},{I_d},{Z_ij},Select\> + flow & sequence diagrams |
+{{/each}}
+| [Model Hierarchy](model-hierarchy.md) | classDiagram + graph BT composition tree |
+| [Test Scenarios](test-scenarios.md) | Input/output test sequences |

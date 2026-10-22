@@ -46,13 +46,16 @@ flowchart LR
 
 ## Documents
 
-| # | Document | Description |
-|---|----------|-------------|
-| 1 | [Model Overview](01-model-overview.md) | System identification, purpose, and model inventory |
-| 2 | [Atomic Model Specs](02-atomic-model-specs.md) | Formal M = \<X, Y, S, δ_int, δ_ext, λ, ta\> for each atomic model |
-| 3 | [Coupled Model Specs](03-coupled-model-specs.md) | Formal N = \<X, Y, D, {M_d}, {I_d}, {Z_ij}, Select\> for each coupled model |
-| 4 | [State Diagrams](04-state-diagrams.md) | Mermaid `stateDiagram-v2` for each atomic model |
-| 5 | [Coupling Flow Diagrams](05-coupling-flow-diagrams.md) | Mermaid `flowchart TD` for each coupled model |
-| 6 | [Interaction Sequences](06-interaction-sequences.md) | Mermaid `sequenceDiagram` for coupled model interactions |
-| 7 | [Model Hierarchy](07-model-hierarchy.md) | Mermaid `classDiagram` + `graph BT` for model structure |
-| 8 | [Test Scenarios](08-test-scenarios.md) | Test specifications with input/output sequences |
+> Modular layout — one self-contained file per model. Each atomic spec embeds its state diagram; each coupled spec embeds its coupling-flow and interaction-sequence diagrams.
+
+| Document | Description |
+|----------|-------------|
+| [Model Overview](01-model-overview.md) | System identification, purpose, and model inventory |
+{{#each atomic_models}}
+| [{{name}} — Atomic Spec](atomic-{{name_kebab}}.md) | Formal M = \<X, Y, S, δ_int, δ_ext, λ, ta\> + embedded state diagram |
+{{/each}}
+{{#each coupled_models}}
+| [{{name}} — Coupled Spec](coupled-{{name_kebab}}.md) | Formal N = \<X, Y, D, {M_d}, {I_d}, {Z_ij}, Select\> + embedded flow & sequence diagrams |
+{{/each}}
+| [Model Hierarchy](model-hierarchy.md) | Mermaid `classDiagram` + `graph BT` for model structure |
+| [Test Scenarios](test-scenarios.md) | Test specifications with input/output sequences |
