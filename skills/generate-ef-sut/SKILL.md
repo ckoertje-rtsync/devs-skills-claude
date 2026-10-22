@@ -121,9 +121,7 @@ stateDiagram-v2
     state Phase5_SUMMARIZE {
         [*] --> Gen_Executive_Summary
         Gen_Executive_Summary --> Present_To_User
-        Present_To_User --> Store_Patterns
-        Store_Patterns --> Train_ReasoningBank
-        Train_ReasoningBank --> [*]
+        Present_To_User --> [*]
     }
 ```
 
@@ -372,13 +370,7 @@ sequenceDiagram
     participant S as Skill Engine
     participant T as Template Scanner
     participant R as Reference Reader
-    participant A as AgentDB
-    participant RB as ReasoningBank
     participant C as Catalog Builder
-
-    S->>RB: trajectory-start(task="EFSUT generation")
-    S->>A: pattern-search("EFSUT methodology")
-    S->>A: hierarchical-recall("experimental frame patterns")
 
     par Step 0.1 + Step 0.2
         S->>T: Glob resources/templates/*.md
@@ -422,28 +414,11 @@ From the reference document, extract:
 
 See the `catalog` section of MODEL_CONTEXT above for the full schema.
 
-**AgentDB Integration:**
-```
-// Search for prior EFSUT patterns before starting
-mcp__claude-flow__agentdb_pattern-search(query="EFSUT experimental frame methodology", topK=5)
-mcp__claude-flow__agentdb_hierarchical-recall(query="experimental frame system under test patterns")
-```
-
-**ReasoningBank Integration:**
-```
-// Begin trajectory for multi-step workflow
-mcp__claude-flow__hooks_intelligence_trajectory-start(
-  task="Generate EFSUT methodology documentation",
-  agent="generate-ef-sut"
-)
-```
-
 ### Phase 0 → Phase 1 Handoff
 
 ```
 HANDOFF_0_TO_1 = {
-  catalog: MODEL_CONTEXT.catalog,
-  prior_patterns: [...]           // From AgentDB search (may be empty)
+  catalog: MODEL_CONTEXT.catalog
 }
 ```
 
@@ -464,24 +439,19 @@ sequenceDiagram
     participant DA as Domain Analyzer
     participant QE as Question Extractor
     participant OI as Observable Identifier
-    participant A as AgentDB
-    participant RB as ReasoningBank
 
     S->>U: Step 1.1: Request system description
     U-->>S: System description / documentation
 
-    par Step 1.2a-d (Concurrent Analysis)
+    par Step 1.2a-c (Concurrent Analysis)
         S->>DA: Step 1.2a: Parse domain scope / SUT boundaries
         DA-->>S: domain, sut_boundaries
         S->>QE: Step 1.2b: Extract stakeholder questions
         QE-->>S: stakeholder_questions[]
         S->>OI: Step 1.2c: Identify candidate observables
         OI-->>S: observables
-        S->>A: Step 1.2d: Search for matching domain patterns
-        A-->>S: matched_patterns[]
     end
 
-    S->>RB: trajectory-step(action="Domain discovery complete")
     S->>U: Step 1.3: Present analysis for confirmation
     U-->>S: Confirmation / adjustments
 ```
@@ -492,14 +462,13 @@ If the user has not already provided one in their message, ask using `AskUserQue
 
 If the user provides documentation file paths, ingest them by reading each file and extracting relevant system information.
 
-**Steps 1.2a, 1.2b, 1.2c, 1.2d (CONCURRENT after 1.1):**
+**Steps 1.2a, 1.2b, 1.2c (CONCURRENT after 1.1):**
 
 | Step | Input | Output | Method |
 |------|-------|--------|--------|
 | 1.2a | User description/docs | `domain`, `sut_boundaries` | Parse system components, interfaces, environment |
 | 1.2b | User description/docs | `stakeholder_questions[]` | Extract who asks what, categorize, prioritize |
 | 1.2c | User description/docs | `observables` | Identify inputs, outputs, controls, termination conditions |
-| 1.2d | `catalog.methodology_patterns` | `matched_patterns[]` | Search AgentDB for similar domain analyses |
 
 **Step 1.2a: Parse Domain Scope and SUT Boundaries**
 Analyze the description to determine:
@@ -523,11 +492,6 @@ Map the system's measurable quantities:
 - **Outputs (O_E):** Observable outputs the SUT produces
 - **Controls (C_E):** Constraints on how the SUT operates during observation
 - **Termination Conditions (T_E):** When observations end
-
-**Step 1.2d: Search AgentDB for Matching Patterns**
-```
-mcp__claude-flow__agentdb_pattern-search(query="[domain-specific terms]", topK=5)
-```
 
 **Step 1.3: Present the complete analysis for user confirmation.**
 
@@ -562,16 +526,6 @@ mcp__claude-flow__agent_spawn(type="domain-analyzer", task="Parse SUT boundaries
 mcp__claude-flow__agent_spawn(type="question-extractor", task="Extract stakeholder questions from documentation")
 ```
 
-**ReasoningBank Integration:**
-```
-mcp__claude-flow__hooks_intelligence_trajectory-step(
-  trajectoryId="[active-trajectory]",
-  action="Phase 1: Domain discovery complete",
-  result="[question_count] questions, [component_count] components identified",
-  quality=0.85
-)
-```
-
 ### Phase 1 → Phase 2 Handoff
 
 ```
@@ -604,7 +558,6 @@ sequenceDiagram
     participant AM as Applicability Mapper
     participant CH as Chain Assembler
     participant MT as Mission Thread Builder
-    participant RB as ReasoningBank
 
     par Steps 2.1-2.4 (Concurrent Artifact Construction)
         S->>EF: Step 2.1: Generate EF specifications
@@ -629,8 +582,6 @@ sequenceDiagram
 
     S->>MT: Step 2.6: Construct mission threads
     MT-->>S: mission_threads[]
-
-    S->>RB: trajectory-step(action="Phase 2: Artifact generation complete")
 ```
 
 **Steps 2.1, 2.2, 2.3, 2.4 (CONCURRENT):**
@@ -712,16 +663,6 @@ mcp__claude-flow__task_orchestrate(
 )
 ```
 
-**ReasoningBank Integration:**
-```
-mcp__claude-flow__hooks_intelligence_trajectory-step(
-  trajectoryId="[active-trajectory]",
-  action="Phase 2: Artifact generation complete",
-  result="[ef_count] EFs, [model_count] models, [chain_count] chains, [thread_count] threads",
-  quality=0.9
-)
-```
-
 ### Phase 2 → Phase 3 Handoff
 
 ```
@@ -754,7 +695,6 @@ sequenceDiagram
     participant PO as Partial Order Checker
     participant TF as Thread Feasibility Checker
     participant FX as Auto-Corrector
-    participant RB as ReasoningBank
 
     par Steps 3.1-3.4 (Concurrent Validation)
         S->>CC: Step 3.1: Chain completeness
@@ -780,9 +720,6 @@ sequenceDiagram
         FX-->>S: corrections[]
         S->>S: Step 3.6: Re-validate
     end
-
-    S->>RB: trajectory-step(action="Phase 3: Validation complete")
-    S->>RB: pattern-search("EFSUT validation fixes")
 ```
 
 **Steps 3.1, 3.2, 3.3, 3.4 (CONCURRENT):**
@@ -807,21 +744,6 @@ For each detected issue:
 **Step 3.6: Re-validate (Sequential, after auto-correction)**
 
 Run all four checks again on the corrected artifacts. If issues persist, report to user.
-
-**ReasoningBank Integration:**
-```
-mcp__claude-flow__hooks_intelligence_trajectory-step(
-  trajectoryId="[active-trajectory]",
-  action="Phase 3: Validation complete",
-  result="passed=[true/false], corrections=[count]",
-  quality=0.95
-)
-mcp__claude-flow__hooks_intelligence_pattern-search(query="EFSUT validation corrections")
-mcp__claude-flow__hooks_intelligence_pattern-store(
-  pattern="EFSUT validation fix: [description]",
-  confidence=0.9
-)
-```
 
 ### Phase 3 → Phase 4 Handoff
 
@@ -943,7 +865,7 @@ HANDOFF_4_TO_5 = {
 
 ## Phase 5: Summary and Learning
 
-**Purpose:** Generate executive summary, present output to user, persist patterns for future sessions.
+**Purpose:** Generate executive summary and present output to user.
 
 **Depends on:** `HANDOFF_4_TO_5`
 
@@ -953,24 +875,12 @@ HANDOFF_4_TO_5 = {
 sequenceDiagram
     participant S as Skill Engine
     participant U as User
-    participant A as AgentDB
-    participant RB as ReasoningBank
 
     S->>S: Step 5.1: Generate executive summary
     Note over S: EFSUT chain overview diagram<br/>Three uses coverage metrics<br/>Validation results<br/>Recommendations
 
     S->>U: Step 5.2: Present output
     Note over U: File locations<br/>Key findings<br/>Suggested next steps
-
-    S->>A: Step 5.3a: pattern-store (generation pattern)
-    Note over A: Store complete EFSUT<br/>generation pattern for<br/>future domain analyses
-
-    S->>A: Step 5.3b: feedback (if user corrections)
-    Note over A: Record any adjustments<br/>for learning
-
-    S->>RB: Step 5.4a: trajectory-step (completion)
-    S->>RB: Step 5.4b: learn (train on workflow)
-    Note over RB: Train reasoning bank<br/>on successful workflow
 ```
 
 **Step 5.1: Generate Executive Summary**
@@ -988,50 +898,6 @@ Display:
 - File count and descriptions
 - Key metrics: questions, EFs, models, chains, threads
 - Suggested next steps
-
-**Step 5.3: Store Patterns (AgentDB)**
-```
-// Persist the generation pattern for future domain analyses
-mcp__claude-flow__agentdb_pattern-store(
-  pattern={
-    type: "efsut-generation",
-    domain: "[domain-name]",
-    question_count: N,
-    ef_count: N,
-    model_count: N,
-    chain_count: N,
-    thread_count: N,
-    resolution_levels: [...],
-    categories: [...],
-    success: true
-  },
-  confidence=0.9
-)
-
-// Record user corrections if any were made
-mcp__claude-flow__agentdb_feedback(
-  feedback="[description of corrections]",
-  context="efsut-generation"
-)
-```
-
-**Step 5.4: Train ReasoningBank**
-```
-// Log completion step
-mcp__claude-flow__hooks_intelligence_trajectory-step(
-  trajectoryId="[active-trajectory]",
-  action="Phase 5: Generation complete",
-  result="[file_count] files written to [output_dir]",
-  quality=0.95
-)
-
-// Train on the successful workflow
-mcp__claude-flow__hooks_intelligence_learn(
-  trajectoryId="[active-trajectory]",
-  verdict="success",
-  reward=0.95
-)
-```
 
 ---
 
